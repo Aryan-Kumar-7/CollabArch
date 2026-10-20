@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
 import { RoomsController } from './rooms.controller';
 import { RoomsService } from './rooms.service';
+import { GatewayModule } from '../gateway/gateway.module';
 
 @Module({
+  imports: [GatewayModule],
   controllers: [RoomsController],
   providers: [RoomsService],
   exports: [RoomsService],

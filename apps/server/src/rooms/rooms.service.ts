@@ -1,55 +1,41 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { CanvasRoomMeta } from '@collabarch/shared-types';
+import { RoomManagerService } from '../gateway/room-manager.service';
 
 @Injectable()
 export class RoomsService {
-  private readonly rooms: Map<string, CanvasRoomMeta> = new Map([
-    [
-      'demo-room',
-      {
-        id: 'demo-room',
-        name: 'Distributed E-Commerce Microservices',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        nodeCount: 4,
-        edgeCount: 3,
-      },
-    ],
-  ]);
+  constructor(private readonly roomManager: RoomManagerService) {}
 
   getAllRooms(): CanvasRoomMeta[] {
-    return Array.from(this.rooms.values());
+    return this.roomManager.getAllRoomMetas();
   }
 
   getRoom(id: string): CanvasRoomMeta {
-    const room = this.rooms.get(id);
-    if (!room) {
-      // Auto-create room for development if requested
-      const newRoom: CanvasRoomMeta = {
-        id,
-        name: `Canvas Room ${id}`,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        nodeCount: 0,
-        edgeCount: 0,
-      };
-      this.rooms.set(id, newRoom);
-      return newRoom;
-    }
-    return room;
+    const session = this.roomManager.getOrCreateRoom(id);
+    const metas = this.roomManager.getAllRoomMetas();
+    const found = metas.find((m) => m.id === id);
+    if (found) return found;
+
+    return {
+      id: session.roomId,
+      name: `Canvas Room ${session.roomId}`,
+      createdAt: session.createdAt.toISOString(),
+      updatedAt: session.lastActiveAt.toISOString(),
+      nodeCount: 0,
+      edgeCount: 0,
+    };
   }
 
   createRoom(name: string): CanvasRoomMeta {
     const id = `room-${Date.now().toString(36)}`;
-    const room: CanvasRoomMeta = {
+    const session = this.roomManager.getOrCreateRoom(id);
+    return {
       id,
       name,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: session.createdAt.toISOString(),
+      updatedAt: session.lastActiveAt.toISOString(),
       nodeCount: 0,
       edgeCount: 0,
     };
-    this.rooms.set(id, room);
-    return room;
   }
 }
