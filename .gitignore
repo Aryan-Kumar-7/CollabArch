@@ -28,6 +28,9 @@ build
 .DS_Store
 *.pem
 
+# TypeScript Build Info
+*.tsbuildinfo
+
 # Logs
 npm-debug.log*
 yarn-debug.log*
