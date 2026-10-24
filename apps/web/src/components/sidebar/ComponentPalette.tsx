@@ -13,7 +13,6 @@ import {
   Layers3,
   Trash2,
   ChevronLeft,
-  ChevronRight,
   Info,
 } from 'lucide-react';
 import { ComponentType, DEFAULT_COMPONENT_CONFIGS } from '@collabarch/shared-types';
@@ -110,26 +109,27 @@ export function ComponentPalette() {
         isSidebarOpen ? 'w-80' : 'w-0 border-r-0'
       )}
     >
-      {/* Floating Toggle Tab */}
-      <button
-        onClick={toggleSidebar}
-        className="absolute -right-7 top-4 z-20 flex h-7 w-7 items-center justify-center rounded-r-md border border-l-0 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white shadow-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-        title={isSidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-      >
-        {isSidebarOpen ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-      </button>
+      {/* Outside Floating Toggle Tab - Visible when Palette is Open */}
+      {isSidebarOpen && (
+        <button
+          onClick={toggleSidebar}
+          className="absolute -right-7 top-4 z-20 flex h-7 w-7 items-center justify-center rounded-r-md border border-l-0 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white shadow-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          title="Collapse sidebar"
+          aria-label="Collapse sidebar"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+      )}
 
       {isSidebarOpen && (
         <div className="flex h-full flex-col overflow-hidden">
           {/* Header */}
           <div className="p-4 border-b border-slate-200 dark:border-slate-800/80">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <Layers3 className="h-4 w-4 text-sky-500 dark:text-sky-400" />
-                <h2 className="text-sm font-semibold tracking-wide text-slate-900 dark:text-slate-100 uppercase">
-                  Architecture Palette
-                </h2>
-              </div>
+            <div className="flex items-center gap-2 mb-2">
+              <Layers3 className="h-4 w-4 text-sky-500 dark:text-sky-400" />
+              <h2 className="text-sm font-semibold tracking-wide text-slate-900 dark:text-slate-100 uppercase">
+                Architecture Palette
+              </h2>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               Drag components onto the infinite canvas or click to place.

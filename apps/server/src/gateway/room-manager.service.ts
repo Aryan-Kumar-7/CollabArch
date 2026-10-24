@@ -313,7 +313,7 @@ export class RoomManagerService {
         {
           id: 'node-gateway',
           type: 'api-gateway',
-          position: { x: 80, y: 220 },
+          position: { x: 60, y: 260 },
           data: {
             label: 'Edge Gateway',
             capacityRps: 5000,
@@ -327,7 +327,7 @@ export class RoomManagerService {
         {
           id: 'node-order-svc',
           type: 'service',
-          position: { x: 420, y: 120 },
+          position: { x: 480, y: 80 },
           data: {
             label: 'Order Service',
             capacityRps: 1500,
@@ -341,7 +341,7 @@ export class RoomManagerService {
         {
           id: 'node-payment-svc',
           type: 'service',
-          position: { x: 420, y: 340 },
+          position: { x: 480, y: 440 },
           data: {
             label: 'Payment Service',
             capacityRps: 800,
@@ -355,7 +355,7 @@ export class RoomManagerService {
         {
           id: 'node-db',
           type: 'database',
-          position: { x: 780, y: 120 },
+          position: { x: 920, y: 80 },
           data: {
             label: 'Orders DB',
             capacityRps: 1000,
@@ -369,7 +369,7 @@ export class RoomManagerService {
         {
           id: 'node-queue',
           type: 'queue',
-          position: { x: 780, y: 340 },
+          position: { x: 920, y: 440 },
           data: {
             label: 'Order Events Bus',
             capacityRps: 12000,

@@ -115,14 +115,14 @@ export function RoomMenu() {
       <button
         onClick={() => setIsOpen((prev) => !prev)}
         className={cn(
-          'flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs transition-all duration-150 shadow-sm',
+          'flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs transition-all duration-150 shadow-sm whitespace-nowrap shrink-0',
           isOpen
             ? 'border-sky-500/50 bg-sky-500/10 text-sky-600 dark:text-sky-300 ring-2 ring-sky-500/20'
             : 'border-slate-200 dark:border-slate-800/90 bg-slate-100/80 dark:bg-slate-900/80 text-slate-700 dark:text-slate-200 hover:border-slate-300 dark:hover:border-slate-700'
         )}
         title="Manage or Switch Rooms"
       >
-        <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500">
+        <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500 whitespace-nowrap">
           Room
         </span>
         <span className="font-mono text-[11px] font-semibold" suppressHydrationWarning>

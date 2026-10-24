@@ -113,7 +113,7 @@ const INITIAL_NODES: ReactFlowNode[] = [
   {
     id: 'node-gateway',
     type: 'api-gateway',
-    position: { x: 80, y: 220 },
+    position: { x: 60, y: 260 },
     data: {
       label: 'Edge Gateway',
       capacityRps: 5000,
@@ -127,7 +127,7 @@ const INITIAL_NODES: ReactFlowNode[] = [
   {
     id: 'node-order-svc',
     type: 'service',
-    position: { x: 420, y: 120 },
+    position: { x: 480, y: 80 },
     data: {
       label: 'Order Service',
       capacityRps: 1500,
@@ -141,7 +141,7 @@ const INITIAL_NODES: ReactFlowNode[] = [
   {
     id: 'node-payment-svc',
     type: 'service',
-    position: { x: 420, y: 340 },
+    position: { x: 480, y: 440 }, // 360px vertical separation from Order Service
     data: {
       label: 'Payment Service',
       capacityRps: 800,
@@ -155,7 +155,7 @@ const INITIAL_NODES: ReactFlowNode[] = [
   {
     id: 'node-db',
     type: 'database',
-    position: { x: 780, y: 120 },
+    position: { x: 920, y: 80 }, // 440px horizontal separation
     data: {
       label: 'Orders DB',
       capacityRps: 1000,
@@ -169,7 +169,7 @@ const INITIAL_NODES: ReactFlowNode[] = [
   {
     id: 'node-queue',
     type: 'queue',
-    position: { x: 780, y: 340 },
+    position: { x: 920, y: 440 }, // 360px vertical separation from Orders DB
     data: {
       label: 'Order Events Bus',
       capacityRps: 12000,
@@ -282,11 +282,11 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   theme: initialTheme,
   nodes: INITIAL_NODES,
   edges: INITIAL_EDGES,
-  selectedNodeId: 'node-order-svc',
+  selectedNodeId: null,
   selectedEdgeId: null,
   viewport: { x: 100, y: 80, zoom: 0.9 },
-  isSidebarOpen: true,
-  isInspectorOpen: true,
+  isSidebarOpen: false,
+  isInspectorOpen: false,
 
   setActiveMode: (mode) => set({ activeMode: mode }),
   setRoomId: (roomId) => {
@@ -483,8 +483,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     set({
       nodes: INITIAL_NODES,
       edges: INITIAL_EDGES,
-      selectedNodeId: 'node-order-svc',
+      selectedNodeId: null,
       selectedEdgeId: null,
+      isInspectorOpen: false,
     }),
 
   clearCanvas: () =>

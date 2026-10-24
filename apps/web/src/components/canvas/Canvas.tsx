@@ -7,9 +7,12 @@ import {
   BackgroundVariant,
   Controls,
   MiniMap,
+  Panel,
   useReactFlow,
   type NodeTypes,
 } from '@xyflow/react';
+import { Layers3, Sliders } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import {
   ApiGatewayNode,
   ServiceNode,
@@ -47,6 +50,10 @@ export function Canvas() {
     selectedNodeId,
     selectedEdgeId,
     theme,
+    isSidebarOpen,
+    toggleSidebar,
+    isInspectorOpen,
+    toggleInspector,
   } = useCanvasStore();
 
   // Auto-center canvas whenever switching into simulator mode or when nodes change
@@ -125,6 +132,36 @@ export function Canvas() {
           size={1.5}
           color={theme === 'dark' ? '#1e293b' : '#cbd5e1'}
         />
+        {/* Floating Canvas Controls: Palette Toggle (Visible when Palette is collapsed) */}
+        {!isSidebarOpen && (
+          <Panel position="top-left" className="!m-3.5">
+            <button
+              onClick={toggleSidebar}
+              className="flex items-center gap-2 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-white/95 dark:bg-slate-900/95 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-white dark:hover:bg-slate-800 backdrop-blur-xl shadow-lg hover:shadow-xl transition-all duration-200 select-none cursor-pointer"
+              title="Open Component Palette"
+            >
+              <Layers3 className="h-3.5 w-3.5 text-sky-500 dark:text-sky-400" />
+              <span>Palette</span>
+            </button>
+          </Panel>
+        )}
+
+        {/* Floating Canvas Controls: Inspector Toggle (Visible when Inspector is collapsed) */}
+        {!isInspectorOpen && (
+          <Panel position="top-right" className="!m-3.5">
+            <button
+              onClick={toggleInspector}
+              className="flex items-center gap-2 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-white/95 dark:bg-slate-900/95 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-white dark:hover:bg-slate-800 backdrop-blur-xl shadow-lg hover:shadow-xl transition-all duration-200 select-none cursor-pointer"
+              title="Open Node Inspector"
+            >
+              <Sliders className="h-3.5 w-3.5 text-indigo-500 dark:text-indigo-400" />
+              <span>Inspector</span>
+              {selectedNodeId && (
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" title="Node selected" />
+              )}
+            </button>
+          </Panel>
+        )}
 
         {/* Minimalist Controls */}
         <Controls

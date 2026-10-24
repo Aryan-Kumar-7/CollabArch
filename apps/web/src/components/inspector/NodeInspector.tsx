@@ -12,7 +12,6 @@ import {
   Tag,
   FileText,
   ChevronRight,
-  ChevronLeft,
   X,
   Zap,
   Cable,
@@ -78,21 +77,24 @@ export function NodeInspector() {
         isInspectorOpen ? 'w-84' : 'w-0 border-l-0'
       )}
     >
-      {/* Floating Toggle Tab */}
-      <button
-        onClick={toggleInspector}
-        className="absolute -left-7 top-4 z-20 flex h-7 w-7 items-center justify-center rounded-l-md border border-r-0 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white shadow-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-        title={isInspectorOpen ? 'Collapse inspector' : 'Expand inspector'}
-      >
-        {isInspectorOpen ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-      </button>
+      {/* Outside Floating Toggle Tab - Visible when Inspector is Open */}
+      {isInspectorOpen && (
+        <button
+          onClick={toggleInspector}
+          className="absolute -left-7 top-4 z-20 flex h-7 w-7 items-center justify-center rounded-l-md border border-r-0 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white shadow-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          title="Collapse inspector"
+          aria-label="Collapse inspector"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      )}
 
       {isInspectorOpen && (
         <div className="flex h-full flex-col overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/80 p-4">
             <div className="flex items-center gap-2">
-              <Sliders className="h-4 w-4 text-sky-500 dark:text-sky-400" />
+              <Sliders className="h-4 w-4 text-indigo-500 dark:text-indigo-400" />
               <h2 className="text-sm font-semibold tracking-wide text-slate-900 dark:text-slate-100 uppercase">
                 {selectedNode ? 'Node Inspector' : selectedEdge ? 'Edge Inspector' : 'Inspector'}
               </h2>
@@ -103,7 +105,9 @@ export function NodeInspector() {
                   setSelectedNodeId(null);
                   setSelectedEdgeId(null);
                 }}
-                className="rounded p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-white transition-colors"
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                title="Deselect"
+                aria-label="Deselect element"
               >
                 <X className="h-4 w-4" />
               </button>
