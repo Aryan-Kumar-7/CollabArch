@@ -4,6 +4,8 @@ import { RoomManagerService } from '../gateway/room-manager.service';
 import { randomUUID } from 'crypto';
 import { createClerkClient } from '@clerk/backend';
 
+import { ActivityService } from '../activity/activity.service';
+
 export interface CreateRoomDto {
   title: string;
   slug?: string;
@@ -23,7 +25,8 @@ export class RoomsService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly roomManager: RoomManagerService
+    private readonly roomManager: RoomManagerService,
+    private readonly activityService: ActivityService
   ) {}
 
   /**
@@ -261,6 +264,14 @@ export class RoomsService {
         },
       });
       this.logger.log(`[RoomsService] Created new room in PostgreSQL: "${room.title}" (${room.slug})`);
+
+      await this.activityService.log({
+        workspaceId: room.workspaceId,
+        roomId: room.id,
+        userId: ownerId,
+        action: 'ROOM_CREATED',
+        details: { title: room.title, slug: room.slug, visibility: room.visibility },
+      });
     }
 
     // Initialize in-memory Yjs session
@@ -405,6 +416,17 @@ export class RoomsService {
       `[RoomsService] Updated room "${slug}" visibility to ${visibility} by user ${userId}`
     );
 
+    await this.activityService.log({
+      workspaceId: updatedRoom.workspaceId,
+      roomId: updatedRoom.id,
+      userId,
+      action: 'VISIBILITY_CHANGED',
+      details: {
+        previousVisibility: room.visibility,
+        newVisibility: visibility,
+      },
+    });
+
     return {
       id: updatedRoom.id,
       slug: updatedRoom.slug,
@@ -432,6 +454,14 @@ export class RoomsService {
     if (!room) {
       throw new NotFoundException(`Room with slug "${slug}" not found`);
     }
+
+    await this.activityService.log({
+      workspaceId: room.workspaceId,
+      roomId: room.id,
+      userId: userId || room.ownerId,
+      action: 'ROOM_DELETED',
+      details: { slug, title: room.title },
+    });
 
     await this.prisma.canvasRoom.delete({
       where: { slug },

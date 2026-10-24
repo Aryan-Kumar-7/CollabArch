@@ -1,6 +1,8 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
+import { ActivityService } from '../activity/activity.service';
+
 export interface SyncUserData {
   id: string;
   email: string;
@@ -12,7 +14,10 @@ export interface SyncUserData {
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly activityService: ActivityService
+  ) {}
 
   /**
    * Upserts the user into the PostgreSQL User table.
@@ -81,6 +86,12 @@ export class UsersService {
         `[UsersService] Created default Personal Workspace "${defaultWorkspace.name}" (${defaultWorkspace.id}) for user ${data.id}`
       );
     }
+
+    await this.activityService.log({
+      userId: data.id,
+      action: 'USER_SYNCED',
+      details: { email: data.email, name: data.name },
+    });
 
     return this.getCurrentUser(data.id);
   }

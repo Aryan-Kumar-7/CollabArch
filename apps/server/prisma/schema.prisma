@@ -19,6 +19,10 @@ model User {
   // Relationships
   ownedRooms    CanvasRoom[]      @relation("RoomOwner")
   memberships   WorkspaceMember[]
+  revisions     CanvasRevision[]  @relation("RevisionCreator")
+  comments      CanvasComment[]   @relation("CommentAuthor")
+  simulations   SimulationRun[]   @relation("SimulationUser")
+  activityLogs  ActivityLog[]     @relation("UserActivity")
 
   @@index([email])
 }
@@ -34,6 +38,7 @@ model Workspace {
 
   members       WorkspaceMember[]
   rooms         CanvasRoom[]
+  activityLogs  ActivityLog[]
 
   @@index([slug])
 }
@@ -72,9 +77,104 @@ model CanvasRoom {
   owner         User        @relation("RoomOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   workspace     Workspace?  @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
 
+  revisions     CanvasRevision[]
+  comments      CanvasComment[]
+  simulations   SimulationRun[]
+  activityLogs  ActivityLog[]
+
   @@index([slug])
   @@index([ownerId])
   @@index([workspaceId])
+}
+
+// -----------------------------------------------------------------------------
+// 1. Version History & Rollback Snapshots
+// -----------------------------------------------------------------------------
+model CanvasRevision {
+  id           String      @id @default(cuid())
+  roomId       String
+  name         String?     // e.g. "v1.0 - Production Launch", "Added Redis Cluster"
+  description  String?
+  documentBlob Bytes       // Immutable snapshot of Y.Doc binary state
+  createdById  String
+  createdAt    DateTime    @default(now())
+
+  room         CanvasRoom  @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  createdBy    User        @relation("RevisionCreator", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([roomId])
+  @@index([createdById])
+}
+
+// -----------------------------------------------------------------------------
+// 2. Threaded Architecture Comments & Sticky Notes
+// -----------------------------------------------------------------------------
+model CanvasComment {
+  id          String          @id @default(cuid())
+  roomId      String
+  authorId    String
+  parentId    String?         // For threaded replies
+  nodeId      String?         // Pinned to a specific architecture service (e.g. "node-order-svc")
+  posX        Float?          // Whiteboard coordinate X
+  posY        Float?          // Whiteboard coordinate Y
+  content     String
+  isResolved  Boolean         @default(false)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  room        CanvasRoom      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  author      User            @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  parent      CanvasComment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies     CanvasComment[] @relation("CommentReplies")
+
+  @@index([roomId])
+  @@index([authorId])
+  @@index([nodeId])
+}
+
+// -----------------------------------------------------------------------------
+// 3. System Simulator Benchmark Reports
+// -----------------------------------------------------------------------------
+model SimulationRun {
+  id               String      @id @default(cuid())
+  roomId           String
+  userId           String
+  title            String?     // e.g. "Peak 10k RPS Stress Test"
+  trafficRps       Int
+  p99LatencyMs     Float
+  errorRate        Float
+  bottleneckNodeId String?     // e.g. "node-order-svc"
+  metricsSnapshot  Json?       // Full timeseries telemetry dump
+  createdAt        DateTime    @default(now())
+
+  room             CanvasRoom  @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user             User        @relation("SimulationUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([roomId])
+  @@index([userId])
+}
+
+// -----------------------------------------------------------------------------
+// 4. Enterprise Audit Trail & Activity Stream
+// -----------------------------------------------------------------------------
+model ActivityLog {
+  id          String         @id @default(cuid())
+  workspaceId String?
+  roomId      String?
+  userId      String
+  action      ActivityAction
+  details     Json?          // Context payload, e.g. { previousVisibility: "PRIVATE", newVisibility: "PUBLIC_LINK" }
+  ipAddress   String?
+  createdAt   DateTime       @default(now())
+
+  workspace   Workspace?     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  room        CanvasRoom?    @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  user        User           @relation("UserActivity", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([roomId])
+  @@index([userId])
+  @@index([createdAt])
 }
 
 enum Role {
@@ -87,4 +187,18 @@ enum Visibility {
   PRIVATE      // Only the owner can access
   WORKSPACE    // Any member in the workspace can access
   PUBLIC_LINK  // Anyone with the shareable URL can access
+}
+
+enum ActivityAction {
+  USER_SYNCED
+  WORKSPACE_CREATED
+  MEMBER_INVITED
+  MEMBER_REMOVED
+  ROOM_CREATED
+  ROOM_DELETED
+  VISIBILITY_CHANGED
+  REVISION_CREATED
+  REVISION_RESTORED
+  COMMENT_ADDED
+  SIMULATION_RECORDED
 }

@@ -8,12 +8,16 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
 import { Role } from '@prisma/client';
 import { randomUUID } from 'crypto';
+import { ActivityService } from '../activity/activity.service';
 
 @Injectable()
 export class WorkspacesService {
   private readonly logger = new Logger(WorkspacesService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly activityService: ActivityService
+  ) {}
 
   /**
    * Returns all workspaces where the user is a member or owner.
@@ -120,6 +124,14 @@ export class WorkspacesService {
     this.logger.log(
       `[WorkspacesService] Created workspace "${workspace.name}" (${workspace.id}) by user ${userId}`
     );
+
+    await this.activityService.log({
+      workspaceId: workspace.id,
+      userId,
+      action: 'WORKSPACE_CREATED',
+      details: { name: workspace.name, slug: workspace.slug },
+    });
+
     return workspace;
   }
 
@@ -227,6 +239,14 @@ export class WorkspacesService {
     this.logger.log(
       `[WorkspacesService] Added/updated member ${user.email} as ${role} in workspace ${workspaceId}`
     );
+
+    await this.activityService.log({
+      workspaceId,
+      userId: user.id,
+      action: 'MEMBER_INVITED',
+      details: { email: user.email, role },
+    });
+
     return membership;
   }
 }
