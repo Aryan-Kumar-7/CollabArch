@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { UserButton, useUser } from '@clerk/nextjs';
+import { UserButton, useUser, OrganizationSwitcher, useOrganization } from '@clerk/nextjs';
 import {
   Network,
   Plus,
@@ -21,6 +21,7 @@ import { CanvasCard, type CanvasRoomCardData } from '@/components/dashboard/Canv
 
 export default function DashboardPage() {
   const { user, isLoaded } = useUser();
+  const { organization, isLoaded: isOrgLoaded } = useOrganization();
   const [rooms, setRooms] = useState<CanvasRoomCardData[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -29,7 +30,10 @@ export default function DashboardPage() {
   const fetchRooms = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch('http://localhost:4000/rooms');
+      const url = organization?.id
+        ? `http://localhost:4000/rooms?workspaceId=${organization.id}`
+        : 'http://localhost:4000/rooms';
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         setRooms(data);
@@ -39,7 +43,7 @@ export default function DashboardPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [organization?.id]);
 
   useEffect(() => {
     fetchRooms();
@@ -49,12 +53,17 @@ export default function DashboardPage() {
     setRooms((prev) => prev.filter((r) => r.slug !== deletedSlug));
   };
 
-  const filteredRooms = rooms.filter(
-    (r) =>
+  const filteredRooms = rooms.filter((r) => {
+    // When an organization is active, filter dashboard rooms by workspaceId: organization.id
+    if (organization?.id && r.workspaceId && r.workspaceId !== organization.id) {
+      return false;
+    }
+    return (
       r.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (r.description && r.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
       r.slug.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+    );
+  });
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -77,6 +86,23 @@ export default function DashboardPage() {
               </div>
             </div>
           </Link>
+
+          {/* Clerk Team Workspace Switcher */}
+          <div className="hidden sm:flex items-center">
+            <OrganizationSwitcher
+              hidePersonal={false}
+              afterCreateOrganizationUrl="/dashboard"
+              afterSelectOrganizationUrl="/dashboard"
+              afterLeaveOrganizationUrl="/dashboard"
+              appearance={{
+                elements: {
+                  rootBox: 'flex items-center',
+                  organizationSwitcherTrigger:
+                    'rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100/80 dark:bg-slate-900/60 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:border-sky-500/30 transition-all shadow-sm',
+                },
+              }}
+            />
+          </div>
         </div>
 
         {/* Global Search Bar */}
@@ -256,7 +282,11 @@ export default function DashboardPage() {
       </main>
 
       {/* Create Canvas Modal */}
-      <CreateCanvasModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+      <CreateCanvasModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        workspaceId={organization?.id}
+      />
     </div>
   );
 }

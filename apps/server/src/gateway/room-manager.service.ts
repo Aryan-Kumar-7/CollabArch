@@ -19,6 +19,7 @@ export interface ConnectedPeer {
   email?: string;
   avatarUrl?: string | null;
   isGuest?: boolean;
+  role?: string;
 }
 
 export interface RoomSession {
@@ -125,6 +126,7 @@ export class RoomManagerService implements OnModuleDestroy {
       email?: string;
       avatarUrl?: string | null;
       isGuest?: boolean;
+      role?: string;
     }
   ): Promise<{ session: RoomSession; peer: ConnectedPeer; isFirstPeerOnNode: boolean }> {
     // If socket was already registered in a different room, clean up first
@@ -169,6 +171,7 @@ export class RoomManagerService implements OnModuleDestroy {
       email: userInfo?.email,
       avatarUrl: userInfo?.avatarUrl,
       isGuest: userInfo?.isGuest ?? true,
+      role: userInfo?.role || 'editor',
     };
 
     session.peers.set(socket, peer);

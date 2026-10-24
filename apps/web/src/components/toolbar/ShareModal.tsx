@@ -34,6 +34,48 @@ export function ShareModal({ isOpen, onClose }: ShareModalProps) {
   const [visibility, setVisibility] = useState<VisibilityType>('PUBLIC_LINK');
   const [role, setRole] = useState<'editor' | 'viewer'>('editor');
   const [shareUrl, setShareUrl] = useState('');
+  const [showUpdatedBadge, setShowUpdatedBadge] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  // Fetch current room metadata and set initial visibility state on mount / modal open
+  useEffect(() => {
+    if (!isOpen || !roomId) return;
+    let isMounted = true;
+    fetch(`http://localhost:4000/rooms/${roomId}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (isMounted && data?.visibility) {
+          setVisibility(data.visibility);
+        }
+      })
+      .catch((err) => console.error('Error fetching room visibility:', err));
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, roomId]);
+
+  const handleVisibilityChange = async (newVisibility: VisibilityType) => {
+    setVisibility(newVisibility);
+    setIsUpdating(true);
+    try {
+      const res = await fetch(`http://localhost:4000/rooms/${roomId}/visibility`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          visibility: newVisibility,
+          userId: user?.id,
+        }),
+      });
+      if (res.ok) {
+        setShowUpdatedBadge(true);
+        setTimeout(() => setShowUpdatedBadge(false), 2500);
+      }
+    } catch (err) {
+      console.error('Failed to update room visibility:', err);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
   const handleExportJson = () => {
     const dataStr =
@@ -160,9 +202,17 @@ export function ShareModal({ isOpen, onClose }: ShareModalProps) {
 
           {/* Visibility Selector */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">
-              Access Permissions
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Access Permissions
+              </label>
+              {showUpdatedBadge && (
+                <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full animate-in fade-in zoom-in-95 duration-150">
+                  <Check className="h-3 w-3" />
+                  <span>Permissions updated</span>
+                </span>
+              )}
+            </div>
             <div className="space-y-2">
               {visibilityOptions.map((opt) => {
                 const Icon = opt.icon;
@@ -171,7 +221,7 @@ export function ShareModal({ isOpen, onClose }: ShareModalProps) {
                   <button
                     key={opt.id}
                     type="button"
-                    onClick={() => setVisibility(opt.id)}
+                    onClick={() => handleVisibilityChange(opt.id)}
                     className={`flex items-start gap-3 w-full p-3 rounded-xl border text-left transition-all ${
                       isSelected
                         ? 'border-sky-500 bg-sky-50/50 dark:bg-sky-950/30 ring-1 ring-sky-500'

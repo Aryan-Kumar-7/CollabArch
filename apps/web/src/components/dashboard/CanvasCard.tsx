@@ -11,6 +11,7 @@ import {
   Globe,
   Lock,
   Layers,
+  Building2,
   MoreVertical,
   Activity,
 } from 'lucide-react';
@@ -22,6 +23,7 @@ export interface CanvasRoomCardData {
   description?: string | null;
   visibility: string;
   ownerId: string;
+  workspaceId?: string | null;
   ownerName: string;
   ownerEmail?: string | null;
   ownerAvatarUrl?: string | null;
@@ -138,9 +140,14 @@ export function CanvasCard({ room, onDelete }: CanvasCardProps) {
               <Globe className="h-3 w-3 text-emerald-500" />
               <span>Public Link</span>
             </>
+          ) : room.visibility === 'PRIVATE' ? (
+            <>
+              <Lock className="h-3 w-3 text-amber-500" />
+              <span>Private</span>
+            </>
           ) : (
             <>
-              <Lock className="h-3 w-3 text-sky-500" />
+              <Building2 className="h-3 w-3 text-sky-500" />
               <span>Workspace</span>
             </>
           )}

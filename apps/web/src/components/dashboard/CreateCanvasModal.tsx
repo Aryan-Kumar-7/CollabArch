@@ -16,6 +16,7 @@ import {
 interface CreateCanvasModalProps {
   isOpen: boolean;
   onClose: () => void;
+  workspaceId?: string;
 }
 
 const TEMPLATES = [
@@ -42,7 +43,7 @@ const TEMPLATES = [
   },
 ];
 
-export function CreateCanvasModal({ isOpen, onClose }: CreateCanvasModalProps) {
+export function CreateCanvasModal({ isOpen, onClose, workspaceId }: CreateCanvasModalProps) {
   const router = useRouter();
   const { user } = useUser();
 
@@ -82,6 +83,7 @@ export function CreateCanvasModal({ isOpen, onClose }: CreateCanvasModalProps) {
           ownerEmail,
           ownerAvatarUrl,
           template: selectedTemplate,
+          workspaceId: workspaceId || undefined,
         }),
       });
 

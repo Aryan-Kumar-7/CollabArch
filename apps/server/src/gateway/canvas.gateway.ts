@@ -11,7 +11,7 @@ import { Logger } from '@nestjs/common';
 import { Server, WebSocket, RawData } from 'ws';
 import type { IncomingMessage } from 'http';
 import { randomUUID } from 'crypto';
-import { verifyToken } from '@clerk/backend';
+import { verifyToken, createClerkClient } from '@clerk/backend';
 import {
   RoomSyncMessage,
   JoinRoomPayload,
@@ -22,6 +22,7 @@ import {
 } from '@collabarch/shared-types';
 import { RoomManagerService } from './room-manager.service';
 import { RedisPubSubService } from '../redis/redis-pubsub.service';
+import { PrismaService } from '../prisma/prisma.service';
 import {
   uint8ArrayToBase64,
   base64ToUint8Array,
@@ -37,7 +38,8 @@ export class CanvasGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   constructor(
     private readonly roomManager: RoomManagerService,
-    private readonly redisPubSub: RedisPubSubService
+    private readonly redisPubSub: RedisPubSubService,
+    private readonly prisma: PrismaService
   ) {}
 
   /**
@@ -53,6 +55,8 @@ export class CanvasGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     let user: {
       userId: string;
+      orgId?: string | null;
+      orgRole?: string | null;
       userName: string;
       email?: string;
       avatarUrl?: string | null;
@@ -61,11 +65,15 @@ export class CanvasGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     if (token) {
       try {
+        const secretKey =
+          process.env.CLERK_SECRET_KEY || 'sk_test_1OOaEIDnIHxhRluKj9r1EBnOVmmiC8fcwyZenhpm2y';
         const verifiedClaims = await verifyToken(token, {
-          secretKey: process.env.CLERK_SECRET_KEY,
+          secretKey,
         });
         user = {
           userId: verifiedClaims.sub,
+          orgId: (verifiedClaims as any).org_id || null,
+          orgRole: (verifiedClaims as any).org_role || null,
           userName:
             (verifiedClaims as any).name ||
             (verifiedClaims as any).username ||
@@ -76,7 +84,7 @@ export class CanvasGateway implements OnGatewayConnection, OnGatewayDisconnect {
           isGuest: false,
         };
         this.logger.log(
-          `[CanvasGateway] Verified Clerk user connected: ${user.userName} (${user.userId})`
+          `[CanvasGateway] Verified Clerk user connected: ${user.userName} (${user.userId}, org: ${user.orgId})`
         );
       } catch (err: any) {
         this.logger.warn(
@@ -166,15 +174,167 @@ export class CanvasGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('join-room')
   async handleJoinRoom(
     @ConnectedSocket() client: WebSocket,
-    @MessageBody() payload: JoinRoomPayload & { stateVector?: string }
-  ): Promise<{ event: string; data: RoomJoinedResponse }> {
-    const { roomId, userId, userName, color, stateVector } = payload;
+    @MessageBody() payload: JoinRoomPayload & { stateVector?: string; role?: string; token?: string }
+  ): Promise<{ event: string; data: RoomJoinedResponse } | void> {
+    const { roomId, userId, userName, color, stateVector, role, token } = payload;
     const socketId = (client as any).id || randomUUID();
     (client as any).id = socketId;
 
-    const authUser = (client as any).auth;
+    // Verify token from payload if client connected before token was acquired
+    let authUser = (client as any).auth;
+    if ((!authUser || authUser.isGuest) && token) {
+      try {
+        const secretKey =
+          process.env.CLERK_SECRET_KEY || 'sk_test_1OOaEIDnIHxhRluKj9r1EBnOVmmiC8fcwyZenhpm2y';
+        const verifiedClaims = await verifyToken(token, { secretKey });
+        if (verifiedClaims?.sub) {
+          authUser = {
+            userId: verifiedClaims.sub,
+            orgId: (verifiedClaims as any).org_id || null,
+            orgRole: (verifiedClaims as any).org_role || null,
+            userName:
+              (verifiedClaims as any).name ||
+              (verifiedClaims as any).username ||
+              userName ||
+              'Architect',
+            email: (verifiedClaims as any).email,
+            avatarUrl: (verifiedClaims as any).picture || null,
+            isGuest: false,
+          };
+          (client as any).auth = authUser;
+          this.logger.log(
+            `[CanvasGateway] Verified Clerk user from join-room payload: ${authUser.userName} (${authUser.userId}, org: ${authUser.orgId})`
+          );
+        }
+      } catch (err: any) {
+        this.logger.warn(`[CanvasGateway] Failed to verify payload token: ${err?.message || err}`);
+      }
+    }
+
     const finalUserId = authUser && !authUser.isGuest ? authUser.userId : (userId || authUser?.userId);
     const finalUserName = authUser && !authUser.isGuest ? authUser.userName : (userName || authUser?.userName);
+
+    // Query PostgreSQL for the room record to enforce RBAC & Visibility gatekeeping
+    const room = await this.prisma.canvasRoom.findUnique({
+      where: { slug: roomId },
+    });
+
+    if (room) {
+      const isOwner = Boolean(authUser && !authUser.isGuest && (authUser.userId === room.ownerId || finalUserId === room.ownerId));
+
+      // 1. Private Room Enforcement
+      if (room.visibility === 'PRIVATE') {
+        if (!isOwner) {
+          this.logger.warn(
+            `[CanvasGateway] Access denied to private room "${roomId}" for user "${authUser?.userId}" (guest: ${authUser?.isGuest})`
+          );
+          this.sendToClient(client, {
+            event: 'room-access-denied',
+            data: { reason: 'This canvas is Private to the owner.' },
+          });
+          client.close(4403, 'Canvas is private');
+          return;
+        }
+      }
+      // 2. Workspace Room Enforcement
+      else if (room.visibility === 'WORKSPACE') {
+        const isAuthenticated = Boolean(authUser && !authUser.isGuest);
+
+        // 1. Check PostgreSQL WorkspaceMember database table first!
+        let isDbMember = false;
+        if (isAuthenticated && room.workspaceId && authUser.userId) {
+          const dbMember = await this.prisma.workspaceMember.findUnique({
+            where: {
+              userId_workspaceId: {
+                userId: authUser.userId,
+                workspaceId: room.workspaceId,
+              },
+            },
+          });
+          if (dbMember) {
+            isDbMember = true;
+          }
+        }
+
+        // 2. Check token claims for active org
+        const isTokenOrgMember = Boolean(
+          isAuthenticated && room.workspaceId && authUser.orgId === room.workspaceId
+        );
+
+        let isOrgMember = isDbMember || isTokenOrgMember;
+
+        // 3. Fallback: If not yet in DB, verify via Clerk API and immediately persist to PostgreSQL
+        if (!isOrgMember && !isOwner && isAuthenticated && room.workspaceId && authUser.userId) {
+          try {
+            const secretKey =
+              process.env.CLERK_SECRET_KEY || 'sk_test_1OOaEIDnIHxhRluKj9r1EBnOVmmiC8fcwyZenhpm2y';
+            const clerk = createClerkClient({ secretKey });
+            const userOrgs = await clerk.users.getOrganizationMembershipList({
+              userId: authUser.userId,
+            });
+            const memberMatch = userOrgs.data.find((m) => m.organization.id === room.workspaceId);
+            if (memberMatch) {
+              isOrgMember = true;
+              authUser.orgId = memberMatch.organization.id;
+              authUser.orgRole = memberMatch.role;
+              (client as any).auth = authUser;
+              this.logger.log(
+                `[CanvasGateway] Verified Clerk org membership via API for user ${authUser.userId} in org ${room.workspaceId}`
+              );
+
+              // Persist into PostgreSQL database WorkspaceMember
+              await this.prisma.workspaceMember.upsert({
+                where: {
+                  userId_workspaceId: {
+                    userId: authUser.userId,
+                    workspaceId: room.workspaceId,
+                  },
+                },
+                update: {
+                  role: memberMatch.role?.includes('admin') ? 'ADMIN' : 'MEMBER',
+                },
+                create: {
+                  userId: authUser.userId,
+                  workspaceId: room.workspaceId,
+                  role: memberMatch.role?.includes('admin') ? 'ADMIN' : 'MEMBER',
+                },
+              });
+            }
+          } catch (err: any) {
+            this.logger.warn(
+              `[CanvasGateway] Failed to verify org membership via Clerk API: ${err?.message || err}`
+            );
+          }
+        }
+
+        // Room creator / owner always has access to their workspace canvas!
+        // Workspace org members also have access.
+        const hasAccess = isOwner || isOrgMember || (isAuthenticated && !room.workspaceId);
+
+        if (!hasAccess) {
+          this.logger.warn(
+            `[CanvasGateway] Access denied to workspace room "${roomId}" for user "${authUser?.userId}" (guest: ${authUser?.isGuest}, org: ${authUser?.orgId}, roomOrg: ${room.workspaceId})`
+          );
+          this.sendToClient(client, {
+            event: 'room-access-denied',
+            data: { reason: 'Canvas is restricted to Workspace members only.' },
+          });
+          client.close(4403, 'Canvas is restricted to Workspace members only.');
+          return;
+        }
+      }
+      // 3. Public Link (visibility === 'PUBLIC_LINK'): Allow connection for both authenticated users and guests.
+    }
+
+    // Determine user role: 'owner' | 'editor' | 'viewer'
+    const isOwner = Boolean(room && authUser && !authUser.isGuest && room.ownerId === authUser.userId);
+    let determinedRole: 'owner' | 'editor' | 'viewer' = 'editor';
+    if (isOwner) {
+      determinedRole = 'owner';
+    } else if (role?.toLowerCase() === 'viewer') {
+      determinedRole = 'viewer';
+    }
+    (client as any).role = determinedRole;
 
     const { session, peer, isFirstPeerOnNode } = await this.roomManager.joinRoom(roomId, client, {
       userId: finalUserId,
@@ -184,6 +344,7 @@ export class CanvasGateway implements OnGatewayConnection, OnGatewayDisconnect {
       email: authUser?.email,
       avatarUrl: authUser?.avatarUrl,
       isGuest: authUser?.isGuest ?? true,
+      role: determinedRole,
     });
 
     // If this is the first client on this node for this room, dynamically subscribe to Redis channels
@@ -203,6 +364,7 @@ export class CanvasGateway implements OnGatewayConnection, OnGatewayDisconnect {
       status: 'ok',
       peerCount: session.peers.size,
       userId: peer.userId,
+      userRole: determinedRole,
     };
 
     // 2. Transmit Step 1 (Server State Vector) to the client
@@ -400,12 +562,18 @@ export class CanvasGateway implements OnGatewayConnection, OnGatewayDisconnect {
     roomId: string,
     payloadBase64: string
   ): Promise<void> {
+    const peer = this.roomManager.getPeer(client);
+    const clientRole = (client as any).role || peer?.role;
+    if (clientRole === 'viewer' || clientRole === 'VIEWER') {
+      this.logger.debug(`[CanvasGateway] Dropping sync-step-2 from read-only VIEWER ${peer?.userId}`);
+      return;
+    }
+
     try {
       const updateBytes = base64ToUint8Array(payloadBase64);
       const applied = this.roomManager.applyUpdate(roomId, updateBytes, client);
 
       if (applied) {
-        const peer = this.roomManager.getPeer(client);
         const socketId = (client as any).id || peer?.socketId;
 
         // Publish to Redis Pub/Sub backplane
@@ -432,12 +600,18 @@ export class CanvasGateway implements OnGatewayConnection, OnGatewayDisconnect {
     roomId: string,
     payloadBase64: string
   ): Promise<void> {
+    const peer = this.roomManager.getPeer(client);
+    const clientRole = (client as any).role || peer?.role;
+    if (clientRole === 'viewer' || clientRole === 'VIEWER') {
+      this.logger.debug(`[CanvasGateway] Dropping sync-update from read-only VIEWER ${peer?.userId}`);
+      return;
+    }
+
     try {
       const updateBytes = base64ToUint8Array(payloadBase64);
       const applied = this.roomManager.applyUpdate(roomId, updateBytes, client);
 
       if (applied) {
-        const peer = this.roomManager.getPeer(client);
         const socketId = (client as any).id || peer?.socketId;
 
         // Publish to Redis Pub/Sub mesh
@@ -496,10 +670,19 @@ export class CanvasGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       const peer = this.roomManager.getPeer(client);
       const socketId = (client as any).id || peer?.socketId;
+      const clientRole = (client as any).role || peer?.role;
 
       // Prefix byte protocol: 0 = sync-step-1, 1 = sync-step-2, 2 = sync-update, 3 = awareness
       const msgType = binaryBytes[0];
       const payloadBytes = binaryBytes.subarray(1);
+
+      // VIEWER guard: Drop binary mutation frames from read-only viewers
+      if (clientRole === 'viewer' || clientRole === 'VIEWER') {
+        if (msgType === 1 || msgType === 2 || msgType > 3) {
+          this.logger.debug(`[CanvasGateway] Dropping raw binary edit from VIEWER ${peer?.userId}`);
+          return;
+        }
+      }
 
       if (msgType === 0) {
         // sync-step-1: payload is state vector

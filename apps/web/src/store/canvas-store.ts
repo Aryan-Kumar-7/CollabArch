@@ -58,6 +58,8 @@ interface CanvasState {
   setUserProfile: (profile: Partial<UserProfile>) => void;
   setCollaborators: (collaborators: CollaboratorPresence[]) => void;
   setIsConnected: (connected: boolean) => void;
+  userRole: 'owner' | 'editor' | 'viewer';
+  setUserRole: (role: 'owner' | 'editor' | 'viewer') => void;
 
   // Theme State
   theme: 'light' | 'dark';
@@ -282,6 +284,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     },
   ],
   isConnected: false,
+  userRole: 'editor',
+  setUserRole: (role) => set({ userRole: role }),
   theme: initialTheme,
   nodes: INITIAL_NODES,
   edges: INITIAL_EDGES,

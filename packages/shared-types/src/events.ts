@@ -48,6 +48,8 @@ export interface JoinRoomPayload {
   userId?: string;
   userName?: string;
   color?: string;
+  role?: string;
+  token?: string;
 }
 
 export interface RoomJoinedResponse {
@@ -55,6 +57,7 @@ export interface RoomJoinedResponse {
   status: 'ok';
   peerCount: number;
   userId: string;
+  userRole?: 'owner' | 'editor' | 'viewer';
 }
 
 export interface LeaveRoomPayload {

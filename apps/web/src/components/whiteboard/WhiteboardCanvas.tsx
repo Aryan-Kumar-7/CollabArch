@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import '@excalidraw/excalidraw/index.css';
 import * as Y from 'yjs';
-import { Loader2, Users } from 'lucide-react';
+import { Loader2, Users, Lock } from 'lucide-react';
 import { MainMenu } from '@excalidraw/excalidraw';
 import type {
   ExcalidrawImperativeAPI,
@@ -82,12 +82,13 @@ export function WhiteboardCanvas({
   userColor = '#38bdf8',
   wsUrl,
 }: WhiteboardCanvasProps) {
-  const { theme } = useCanvasStore();
-  const { getToken } = useAuth();
+  const { theme, userRole, setUserRole } = useCanvasStore();
+  const { isLoaded, isSignedIn, userId: clerkUserId, getToken } = useAuth();
   const [excalidrawApi, setExcalidrawApi] = useState<ExcalidrawImperativeAPI | null>(null);
   const excalidrawApiRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [peerCount, setPeerCount] = useState<number>(1);
+  const [accessDeniedReason, setAccessDeniedReason] = useState<string | null>(null);
 
   // Collaborator cursor and profile maps for multi-user awareness
   const collaboratorsMapRef = useRef<Map<SocketId, Collaborator>>(new Map());
@@ -104,17 +105,18 @@ export function WhiteboardCanvas({
     >
   >(new Map());
 
-  // Sync theme changes to Excalidraw runtime state
+  // Sync theme and viewModeEnabled changes to Excalidraw runtime state
   useEffect(() => {
     if (excalidrawApi) {
       excalidrawApi.updateScene({
         appState: {
           theme,
           viewBackgroundColor: theme === 'dark' ? '#0f172a' : '#ffffff',
+          viewModeEnabled: userRole === 'viewer',
         },
       });
     }
-  }, [theme, excalidrawApi]);
+  }, [theme, userRole, excalidrawApi]);
 
   // Yjs CRDT Document & Elements Map
   const yDocRef = useRef<Y.Doc | null>(null);
@@ -130,9 +132,10 @@ export function WhiteboardCanvas({
     (count: number) => {
       const safeCount = Math.max(1, count);
       setPeerCount(safeCount);
+      const effectiveSelfId = clerkUserId || localUserIdRef.current;
       const list: CollaboratorPresence[] = [
         {
-          userId: localUserIdRef.current,
+          userId: effectiveSelfId,
           userName: `${userName} (You)`,
           color: userColor,
           isCurrentUser: true,
@@ -162,11 +165,16 @@ export function WhiteboardCanvas({
       }
       useCanvasStore.getState().setCollaborators(list);
     },
-    [userName, userColor]
+    [userName, userColor, clerkUserId]
   );
 
   // Initialize shared Y.Doc & WebSocket synchronization
   useEffect(() => {
+    // Hold off connecting until Clerk authentication has completely hydrated
+    if (!isLoaded) return;
+
+    setAccessDeniedReason(null);
+
     const doc = new Y.Doc();
     yDocRef.current = doc;
     const yElementsMap = doc.getMap<ExcalidrawElement>('whiteboard_elements');
@@ -204,10 +212,12 @@ export function WhiteboardCanvas({
       if (isDisposed) return;
 
       let token: string | null = null;
-      try {
-        token = await getToken();
-      } catch {
-        // Fallback to guest if unauthenticated or error
+      if (isSignedIn) {
+        try {
+          token = await getToken();
+        } catch {
+          // Fallback to guest if unauthenticated or error
+        }
       }
 
       if (isDisposed) return;
@@ -242,15 +252,18 @@ export function WhiteboardCanvas({
           setIsConnected(true);
           useCanvasStore.getState().setIsConnected(true);
 
-          // Perform Room Handshake with state vector
+          // Perform Room Handshake with state vector and authenticated credentials
           const stateVector = Y.encodeStateVector(doc);
+          const effectiveUserId = clerkUserId || localUserIdRef.current;
           const joinPayload = {
             event: 'join-room',
             data: {
               roomId,
-              userId: localUserIdRef.current,
+              userId: effectiveUserId,
               userName,
               color: userColor,
+              role: useCanvasStore.getState().userRole,
+              token: token || undefined,
               stateVector: uint8ArrayToBase64(stateVector),
             },
           };
@@ -264,7 +277,15 @@ export function WhiteboardCanvas({
             const { event: eventName, data } = message;
 
             if (eventName === 'room-joined') {
+              setAccessDeniedReason(null);
+              if (data.userRole) {
+                setUserRole(data.userRole);
+              }
               syncPeerCountToStore(data.peerCount || 1);
+            } else if (eventName === 'room-access-denied') {
+              setAccessDeniedReason(data.reason || 'Canvas is restricted to Workspace members only.');
+              setIsConnected(false);
+              useCanvasStore.getState().setIsConnected(false);
             } else if (eventName === 'peer-joined') {
               if (data.peer?.userId) {
                 peerProfilesRef.current.set(data.peer.userId, {
@@ -351,9 +372,13 @@ export function WhiteboardCanvas({
           }
         };
 
-        ws.onclose = () => {
+        ws.onclose = (event) => {
           setIsConnected(false);
           useCanvasStore.getState().setIsConnected(false);
+          if (event.code === 4403) {
+            // Access denied by RBAC gatekeeper, do not auto-reconnect
+            return;
+          }
           reconnectTimeout = setTimeout(connectWebSocket, 3000);
         };
 
@@ -403,7 +428,7 @@ export function WhiteboardCanvas({
             ws.send(
               JSON.stringify({
                 event: 'leave-room',
-                data: { roomId, userId: localUserIdRef.current },
+                data: { roomId, userId: clerkUserId || localUserIdRef.current },
               })
             );
           }
@@ -414,12 +439,21 @@ export function WhiteboardCanvas({
       }
       doc.destroy();
     };
-  }, [roomId, userName, userColor, wsUrl, syncPeerCountToStore]);
+  }, [
+    isLoaded,
+    isSignedIn,
+    clerkUserId,
+    roomId,
+    userName,
+    userColor,
+    wsUrl,
+    syncPeerCountToStore,
+  ]);
 
   // Handle local drawing changes from Excalidraw UI
   const handleExcalidrawChange = useCallback(
     (elements: readonly ExcalidrawElement[], appState: AppState, files: BinaryFiles) => {
-      if (isRemoteUpdatingRef.current) return;
+      if (isRemoteUpdatingRef.current || useCanvasStore.getState().userRole === 'viewer') return;
 
       const yDoc = yDocRef.current;
       const yElementsMap = yElementsMapRef.current;
@@ -455,7 +489,7 @@ export function WhiteboardCanvas({
               type: 'awareness',
               roomId,
               payload: JSON.stringify({
-                userId: localUserIdRef.current,
+                userId: clerkUserId || localUserIdRef.current,
                 userName,
                 color: userColor,
                 cursor: payload.pointer,
@@ -465,7 +499,7 @@ export function WhiteboardCanvas({
         );
       }
     },
-    [roomId, userName, userColor]
+    [roomId, userName, userColor, clerkUserId]
   );
 
   // Broadcast user profile updates to peers
@@ -479,7 +513,7 @@ export function WhiteboardCanvas({
             type: 'awareness',
             roomId,
             payload: JSON.stringify({
-              userId: localUserIdRef.current,
+              userId: clerkUserId || localUserIdRef.current,
               userName,
               color: userColor,
             }),
@@ -487,13 +521,55 @@ export function WhiteboardCanvas({
         })
       );
     }
-  }, [roomId, userName, userColor]);
+  }, [roomId, userName, userColor, clerkUserId]);
+
+  if (!isLoaded) {
+    return (
+      <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400">
+        <Loader2 className="h-8 w-8 animate-spin text-sky-500 dark:text-sky-400" />
+        <span className="text-sm font-medium tracking-wide">
+          Verifying workspace permissions...
+        </span>
+      </div>
+    );
+  }
+
+  if (accessDeniedReason) {
+    return (
+      <div className="flex h-full w-full flex-col items-center justify-center p-6 bg-slate-50 dark:bg-slate-950 text-center animate-in fade-in duration-200">
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-500 mb-4 shadow-xl shadow-amber-500/10">
+          <Lock className="h-8 w-8" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
+          Canvas Access Restricted
+        </h2>
+        <p className="text-sm text-slate-600 dark:text-slate-400 max-w-md mb-6 leading-relaxed">
+          {accessDeniedReason}
+        </p>
+        <div className="flex items-center gap-3">
+          <a
+            href="/dashboard"
+            className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shadow-sm"
+          >
+            Go to Dashboard
+          </a>
+          <a
+            href="/"
+            className="rounded-xl bg-sky-500 hover:bg-sky-600 px-4 py-2 text-xs font-semibold text-white shadow-sm shadow-sky-500/20 transition-colors"
+          >
+            Open Personal Studio
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex-1 h-full w-full overflow-hidden bg-slate-50 dark:bg-slate-950">
       {/* Full-bleed Excalidraw Whiteboard Container */}
       <div className="h-full w-full">
         <Excalidraw
+          viewModeEnabled={userRole === 'viewer'}
           excalidrawAPI={(api) => {
             setExcalidrawApi(api);
             excalidrawApiRef.current = api;
@@ -517,6 +593,7 @@ export function WhiteboardCanvas({
           initialData={{
             appState: {
               theme,
+              viewModeEnabled: userRole === 'viewer',
               viewBackgroundColor: theme === 'dark' ? '#0f172a' : '#ffffff',
               currentItemStrokeColor: theme === 'dark' ? '#f8fafc' : '#1e1e1e',
               currentItemBackgroundColor: 'transparent',

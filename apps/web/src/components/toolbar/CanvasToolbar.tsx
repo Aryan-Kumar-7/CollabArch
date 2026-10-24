@@ -10,6 +10,7 @@ import {
   Moon,
   Share2,
   LayoutDashboard,
+  Lock,
 } from 'lucide-react';
 import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from '@clerk/nextjs';
 import { useCanvasStore } from '@/store/canvas-store';
@@ -25,6 +26,7 @@ export function CanvasToolbar() {
     theme,
     toggleTheme,
     setUserProfile,
+    userRole,
   } = useCanvasStore();
 
   const [mounted, setMounted] = useState(false);
@@ -69,6 +71,13 @@ export function CanvasToolbar() {
 
         {/* Dynamic Canvas Title / Room Selector */}
         <RoomMenu />
+
+        {userRole === 'viewer' && (
+          <span className="flex items-center gap-1 rounded-full bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400 shrink-0">
+            <Lock className="h-3 w-3" />
+            <span>View Only</span>
+          </span>
+        )}
       </div>
 
       {/* Center: True Mathematically Centered Segmented Mode Switcher */}

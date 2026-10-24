@@ -50,6 +50,7 @@ export function Canvas() {
     selectedNodeId,
     selectedEdgeId,
     theme,
+    userRole,
     isSidebarOpen,
     toggleSidebar,
     isInspectorOpen,
@@ -74,6 +75,7 @@ export function Canvas() {
   const onDrop = useCallback(
     (event: React.DragEvent) => {
       event.preventDefault();
+      if (userRole === 'viewer') return;
 
       const type = event.dataTransfer.getData('application/reactflow') as ComponentType;
       if (!type) return;
@@ -85,7 +87,7 @@ export function Canvas() {
 
       addNode(type, position);
     },
-    [screenToFlowPosition, addNode]
+    [screenToFlowPosition, addNode, userRole]
   );
 
   return (
@@ -101,9 +103,12 @@ export function Canvas() {
         }))}
         nodeTypes={nodeTypes}
         colorMode={theme}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
+        nodesDraggable={userRole !== 'viewer'}
+        nodesConnectable={userRole !== 'viewer'}
+        elementsSelectable={true}
+        onNodesChange={userRole !== 'viewer' ? onNodesChange : undefined}
+        onEdgesChange={userRole !== 'viewer' ? onEdgesChange : undefined}
+        onConnect={userRole !== 'viewer' ? onConnect : undefined}
         onNodeClick={(_, node) => setSelectedNodeId(node.id)}
         onEdgeClick={(_, edge) => setSelectedEdgeId(edge.id)}
         onPaneClick={() => {
