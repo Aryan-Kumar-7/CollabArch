@@ -134,7 +134,7 @@ export class RoomsService {
     }
 
     // Initialize in-memory Yjs session
-    this.roomManager.getOrCreateRoom(room.slug, room.title);
+    await this.roomManager.getOrCreateRoom(room.slug, room.title);
 
     return {
       id: room.id,
@@ -197,7 +197,7 @@ export class RoomsService {
       });
     }
 
-    const session = this.roomManager.getOrCreateRoom(slug, room.title);
+    const session = await this.roomManager.getOrCreateRoom(slug, room.title);
 
     return {
       id: room.id,

@@ -91,7 +91,18 @@ export function WhiteboardCanvas({
 
   // Collaborator cursor and profile maps for multi-user awareness
   const collaboratorsMapRef = useRef<Map<SocketId, Collaborator>>(new Map());
-  const peerProfilesRef = useRef<Map<string, { userName: string; color: string }>>(new Map());
+  const peerProfilesRef = useRef<
+    Map<
+      string,
+      {
+        userName: string;
+        color: string;
+        email?: string;
+        avatarUrl?: string | null;
+        isGuest?: boolean;
+      }
+    >
+  >(new Map());
 
   // Sync theme changes to Excalidraw runtime state
   useEffect(() => {
@@ -133,6 +144,9 @@ export function WhiteboardCanvas({
           userId: peerId,
           userName: profile.userName,
           color: profile.color,
+          email: profile.email,
+          avatarUrl: profile.avatarUrl,
+          isGuest: profile.isGuest,
           isCurrentUser: false,
         });
       }
@@ -256,6 +270,9 @@ export function WhiteboardCanvas({
                 peerProfilesRef.current.set(data.peer.userId, {
                   userName: data.peer.userName || 'Collaborator',
                   color: data.peer.color || '#818cf8',
+                  email: data.peer.email,
+                  avatarUrl: data.peer.avatarUrl,
+                  isGuest: data.peer.isGuest,
                 });
               }
               syncPeerCountToStore(data.peerCount || 1);

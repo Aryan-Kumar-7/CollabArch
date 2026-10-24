@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import * as Y from 'yjs';
 import { WebSocket } from 'ws';
 import {
@@ -6,8 +6,8 @@ import {
   CanvasEdge,
   CanvasRoomMeta,
 } from '@collabarch/shared-types';
-
 import { randomUUID } from 'crypto';
+import { PrismaService } from '../prisma/prisma.service';
 
 export interface ConnectedPeer {
   socket: WebSocket;
@@ -41,7 +41,7 @@ const DEFAULT_PEER_COLORS = [
 ];
 
 @Injectable()
-export class RoomManagerService {
+export class RoomManagerService implements OnModuleDestroy {
   private readonly logger = new Logger(RoomManagerService.name);
 
   // In-memory active room sessions
@@ -50,14 +50,15 @@ export class RoomManagerService {
   // Reverse mapping for fast socket-to-roomId lookups
   private readonly socketToRoom = new Map<WebSocket, string>();
 
-  constructor() {
-    // Dynamic room sessions are initialized on-demand as clients connect
-  }
+  // Debounced snapshot timers per room
+  private readonly snapshotTimers = new Map<string, NodeJS.Timeout>();
+
+  constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Retrieves an active room or initializes a new in-memory Y.Doc session.
+   * Retrieves an active room or initializes a new in-memory Y.Doc session with PostgreSQL cold-start hydration.
    */
-  getOrCreateRoom(roomId: string, name?: string): RoomSession {
+  async getOrCreateRoom(roomId: string, name?: string): Promise<RoomSession> {
     let session = this.rooms.get(roomId);
     if (!session) {
       const doc = new Y.Doc();
@@ -74,8 +75,33 @@ export class RoomManagerService {
         lastActiveAt: new Date(),
       };
 
-      // Seed starter architectural topology for fresh rooms
-      this.seedStarterArchitecture(doc);
+      // Cold-start hydration: Check if a binary snapshot is persisted in PostgreSQL
+      try {
+        const roomRecord = await this.prisma.canvasRoom.findUnique({
+          where: { slug: roomId },
+          select: { documentBlob: true, title: true },
+        });
+
+        if (roomRecord?.documentBlob && roomRecord.documentBlob.length > 0) {
+          Y.applyUpdate(doc, new Uint8Array(roomRecord.documentBlob), 'cold-start-hydration');
+          this.logger.log(
+            `[RoomManager] Cold-start hydrated room "${roomId}" from PostgreSQL snapshot (${roomRecord.documentBlob.length} bytes)`
+          );
+        } else {
+          // Only seed starter architectural topology if no documentBlob exists in the database
+          this.seedStarterArchitecture(doc);
+        }
+
+        if (roomRecord?.title) {
+          session.name = roomRecord.title;
+        }
+      } catch (err: any) {
+        this.logger.warn(
+          `[RoomManager] Could not hydrate snapshot for room "${roomId}", using starter seed:`,
+          err?.message || err
+        );
+        this.seedStarterArchitecture(doc);
+      }
 
       this.rooms.set(roomId, session);
       this.logger.log(`[RoomManager] Initialized dynamic in-memory Y.Doc room: ${roomId}`);
@@ -88,7 +114,7 @@ export class RoomManagerService {
    * Registers a client socket into an active room session.
    * Returns whether this is the first peer connected to this room on this node.
    */
-  joinRoom(
+  async joinRoom(
     roomId: string,
     socket: WebSocket,
     userInfo?: {
@@ -100,14 +126,14 @@ export class RoomManagerService {
       avatarUrl?: string | null;
       isGuest?: boolean;
     }
-  ): { session: RoomSession; peer: ConnectedPeer; isFirstPeerOnNode: boolean } {
+  ): Promise<{ session: RoomSession; peer: ConnectedPeer; isFirstPeerOnNode: boolean }> {
     // If socket was already registered in a different room, clean up first
     const existingRoomId = this.socketToRoom.get(socket);
     if (existingRoomId && existingRoomId !== roomId) {
       this.leaveRoom(socket);
     }
 
-    const session = this.getOrCreateRoom(roomId);
+    const session = await this.getOrCreateRoom(roomId);
     const isFirstPeerOnNode = session.peers.size === 0;
 
     const socketId = userInfo?.socketId || (socket as any).id || randomUUID();
@@ -185,6 +211,17 @@ export class RoomManagerService {
       `[RoomManager] Peer ${peer?.userId ?? 'unknown'} left room "${roomId}". Remaining peers on node: ${remainingPeerCount}`
     );
 
+    if (isLastPeerOnNode) {
+      // If last client departed, flush immediately so server restarts don't lose the latest state
+      if (this.snapshotTimers.has(roomId)) {
+        clearTimeout(this.snapshotTimers.get(roomId)!);
+        this.snapshotTimers.delete(roomId);
+      }
+      this.flushRoomSnapshot(roomId).catch((err) => {
+        this.logger.error(`[Persistence] Error flushing snapshot on last peer departure:`, err);
+      });
+    }
+
     if (peer) {
       return { roomId, peer, remainingPeerCount, isLastPeerOnNode };
     }
@@ -192,7 +229,8 @@ export class RoomManagerService {
   }
 
   /**
-   * Applies an incoming binary differential update to the room's CRDT document.
+   * Applies an incoming binary differential update to the room's CRDT document
+   * and schedules a debounced snapshot flush to PostgreSQL.
    */
   applyUpdate(roomId: string, update: Uint8Array, origin?: unknown): boolean {
     const session = this.rooms.get(roomId);
@@ -204,6 +242,7 @@ export class RoomManagerService {
     try {
       Y.applyUpdate(session.doc, update, origin);
       session.lastActiveAt = new Date();
+      this.scheduleRoomSnapshot(roomId);
       return true;
     } catch (err) {
       this.logger.error(`[RoomManager] Error applying CRDT update to room "${roomId}":`, err);
@@ -212,10 +251,95 @@ export class RoomManagerService {
   }
 
   /**
+   * Trailing debounce (10 seconds) for persisting binary snapshots to PostgreSQL.
+   */
+  private scheduleRoomSnapshot(roomId: string): void {
+    if (this.snapshotTimers.has(roomId)) {
+      clearTimeout(this.snapshotTimers.get(roomId)!);
+    }
+
+    const timer = setTimeout(async () => {
+      await this.flushRoomSnapshot(roomId);
+    }, 10000); // 10s trailing debounce
+
+    this.snapshotTimers.set(roomId, timer);
+  }
+
+  /**
+   * Flushes binary snapshot of Y.Doc into PostgreSQL.
+   */
+  public async flushRoomSnapshot(roomId: string): Promise<void> {
+    const session = this.rooms.get(roomId);
+    if (!session) return;
+
+    try {
+      const snapshotBuffer = Buffer.from(Y.encodeStateAsUpdate(session.doc));
+      await this.prisma.canvasRoom.update({
+        where: { slug: roomId },
+        data: {
+          documentBlob: snapshotBuffer,
+          updatedAt: new Date(),
+        },
+      });
+      this.logger.log(
+        `[Persistence] Flushed snapshot for room "${roomId}" to PostgreSQL (${snapshotBuffer.length} bytes)`
+      );
+    } catch (err: any) {
+      if (err.code === 'P2025') {
+        try {
+          const defaultOwnerId = 'user_guest_default';
+          await this.prisma.user.upsert({
+            where: { id: defaultOwnerId },
+            update: {},
+            create: {
+              id: defaultOwnerId,
+              email: `${defaultOwnerId}@collabarch.internal`,
+              name: 'CollabArch Architect',
+            },
+          });
+          const snapshotBuffer = Buffer.from(Y.encodeStateAsUpdate(session.doc));
+          await this.prisma.canvasRoom.create({
+            data: {
+              slug: roomId,
+              title: session.name || `Studio ${roomId}`,
+              ownerId: defaultOwnerId,
+              documentBlob: snapshotBuffer,
+            },
+          });
+          this.logger.log(
+            `[Persistence] Auto-created & flushed room "${roomId}" to PostgreSQL (${snapshotBuffer.length} bytes)`
+          );
+        } catch (innerErr) {
+          this.logger.error(`[Persistence] Failed auto-creating room "${roomId}":`, innerErr);
+        }
+      } else {
+        this.logger.error(
+          `[Persistence] Failed to flush snapshot for room "${roomId}":`,
+          err?.message || err
+        );
+      }
+    } finally {
+      this.snapshotTimers.delete(roomId);
+    }
+  }
+
+  /**
+   * Flushes all pending snapshots upon server shutdown.
+   */
+  async onModuleDestroy() {
+    for (const [roomId, timer] of this.snapshotTimers.entries()) {
+      clearTimeout(timer);
+      await this.flushRoomSnapshot(roomId);
+    }
+    this.snapshotTimers.clear();
+  }
+
+  /**
    * Encodes the current state vector for a room document (Sync Step 1).
    */
   encodeStateVector(roomId: string): Uint8Array {
-    const session = this.getOrCreateRoom(roomId);
+    const session = this.rooms.get(roomId);
+    if (!session) return new Uint8Array();
     return Y.encodeStateVector(session.doc);
   }
 
@@ -223,7 +347,8 @@ export class RoomManagerService {
    * Computes the differential update given a target state vector (Sync Step 2).
    */
   computeDiff(roomId: string, targetStateVector?: Uint8Array): Uint8Array {
-    const session = this.getOrCreateRoom(roomId);
+    const session = this.rooms.get(roomId);
+    if (!session) return new Uint8Array();
     return Y.encodeStateAsUpdate(session.doc, targetStateVector);
   }
 

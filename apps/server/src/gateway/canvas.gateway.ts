@@ -176,7 +176,7 @@ export class CanvasGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const finalUserId = authUser && !authUser.isGuest ? authUser.userId : (userId || authUser?.userId);
     const finalUserName = authUser && !authUser.isGuest ? authUser.userName : (userName || authUser?.userName);
 
-    const { session, peer, isFirstPeerOnNode } = this.roomManager.joinRoom(roomId, client, {
+    const { session, peer, isFirstPeerOnNode } = await this.roomManager.joinRoom(roomId, client, {
       userId: finalUserId,
       userName: finalUserName,
       color,

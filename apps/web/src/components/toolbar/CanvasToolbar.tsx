@@ -20,6 +20,7 @@ import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from '@clerk/n
 import { useCanvasStore } from '@/store/canvas-store';
 import { cn } from '@/lib/utils';
 import { RoomMenu } from '@/components/toolbar/RoomMenu';
+import { ShareModal } from '@/components/toolbar/ShareModal';
 
 export function CanvasToolbar() {
   const {
@@ -38,6 +39,7 @@ export function CanvasToolbar() {
 
   const [mounted, setMounted] = useState(false);
   const [hasCopiedLink, setHasCopiedLink] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const { user, isLoaded: isUserLoaded } = useUser();
 
   useEffect(() => {
@@ -247,6 +249,16 @@ export function CanvasToolbar() {
 
         <div className="h-5 w-[1px] bg-slate-200 dark:bg-slate-800 mx-0.5 shrink-0" />
 
+        {/* Figma/Eraser Style Primary Share Button */}
+        <button
+          onClick={() => setIsShareModalOpen(true)}
+          className="flex items-center gap-1.5 rounded-lg bg-sky-500 hover:bg-sky-600 active:bg-sky-700 px-3 py-1.5 text-xs font-semibold text-white shadow-sm shadow-sky-500/25 transition-all whitespace-nowrap shrink-0"
+          title="Share canvas with team or generate public link"
+        >
+          <Share2 className="h-3.5 w-3.5 text-white shrink-0" />
+          <span>Share</span>
+        </button>
+
         {/* Theme Toggle Button */}
         <button
           onClick={toggleTheme}
@@ -301,6 +313,12 @@ export function CanvasToolbar() {
           </SignedOut>
         </div>
       </div>
+
+      {/* Figma / Eraser.io Style Share Modal */}
+      <ShareModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+      />
     </header>
   );
 }

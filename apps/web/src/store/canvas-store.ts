@@ -36,6 +36,9 @@ export interface CollaboratorPresence {
   userName: string;
   color: string;
   isCurrentUser?: boolean;
+  email?: string;
+  avatarUrl?: string | null;
+  isGuest?: boolean;
 }
 
 export interface UserProfile {
