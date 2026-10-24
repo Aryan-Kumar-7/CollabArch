@@ -1,23 +1,30 @@
-import { Controller, Get, Post, Param, Body } from '@nestjs/common';
-import { RoomsService } from './rooms.service';
-import { CanvasRoomMeta } from '@collabarch/shared-types';
+import { Controller, Get, Post, Delete, Param, Query, Body } from '@nestjs/common';
+import { RoomsService, CreateRoomDto } from './rooms.service';
 
 @Controller('rooms')
 export class RoomsController {
   constructor(private readonly roomsService: RoomsService) {}
 
   @Get()
-  getAllRooms(): CanvasRoomMeta[] {
-    return this.roomsService.getAllRooms();
+  async getAllRooms(@Query('userId') userId?: string) {
+    return this.roomsService.getAllRooms(userId);
   }
 
-  @Get(':id')
-  getRoom(@Param('id') id: string): CanvasRoomMeta {
-    return this.roomsService.getRoom(id);
+  @Get(':slug')
+  async getRoom(@Param('slug') slug: string) {
+    return this.roomsService.getRoomBySlug(slug);
   }
 
   @Post()
-  createRoom(@Body() body?: { name?: string; id?: string }): CanvasRoomMeta {
-    return this.roomsService.createRoom(body?.name, body?.id);
+  async createRoom(@Body() body: CreateRoomDto) {
+    return this.roomsService.createRoom(body);
+  }
+
+  @Delete(':slug')
+  async deleteRoom(
+    @Param('slug') slug: string,
+    @Query('userId') userId?: string
+  ) {
+    return this.roomsService.deleteRoom(slug, userId);
   }
 }

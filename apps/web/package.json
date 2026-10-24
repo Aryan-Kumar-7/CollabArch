@@ -11,12 +11,13 @@
     "clean": "rm -rf .next"
   },
   "dependencies": {
+    "@clerk/nextjs": "^6.39.8",
     "@collabarch/shared-types": "workspace:*",
     "@excalidraw/excalidraw": "^0.18.1",
     "@xyflow/react": "^12.4.2",
     "clsx": "^2.1.1",
     "lucide-react": "^0.473.0",
-    "next": "14.2.23",
+    "next": "14.2.25",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "tailwind-merge": "^2.6.0",

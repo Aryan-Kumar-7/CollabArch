@@ -1,0 +1,90 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Verified User Account synced from Clerk
+model User {
+  id            String            @id // Matches Clerk User ID (e.g. "user_2aBc...")
+  email         String            @unique
+  name          String
+  avatarUrl     String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  // Relationships
+  ownedRooms    CanvasRoom[]      @relation("RoomOwner")
+  memberships   WorkspaceMember[]
+
+  @@index([email])
+}
+
+// Team / Organization Workspace
+model Workspace {
+  id            String            @id @default(cuid())
+  name          String            // e.g. "Core Infrastructure Team"
+  slug          String            @unique
+  clerkOrgId    String?           @unique // Optional sync with Clerk Organizations
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  members       WorkspaceMember[]
+  rooms         CanvasRoom[]
+
+  @@index([slug])
+}
+
+// Workspace Membership & Roles
+model WorkspaceMember {
+  id            String      @id @default(cuid())
+  userId        String
+  workspaceId   String
+  role          Role        @default(MEMBER)
+  createdAt     DateTime    @default(now())
+
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace     Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+}
+
+// Architecture Canvas Diagrams
+model CanvasRoom {
+  id            String      @id @default(cuid())
+  slug          String      @unique // e.g. "order-service-v2"
+  title         String      @default("Untitled Architecture Canvas")
+  description   String?
+  
+  ownerId       String
+  workspaceId   String?
+  
+  // Real-time State & Persistence
+  documentBlob  Bytes?      // Debounced binary snapshot of Y.Doc
+  visibility    Visibility  @default(WORKSPACE)
+  
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  owner         User        @relation("RoomOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  workspace     Workspace?  @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+
+  @@index([slug])
+  @@index([ownerId])
+  @@index([workspaceId])
+}
+
+enum Role {
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+enum Visibility {
+  PRIVATE      // Only the owner can access
+  WORKSPACE    // Any member in the workspace can access
+  PUBLIC_LINK  // Anyone with the shareable URL can access
+}

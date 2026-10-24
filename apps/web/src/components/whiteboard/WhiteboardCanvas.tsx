@@ -14,6 +14,7 @@ import type {
   SocketId,
 } from '@excalidraw/excalidraw/types';
 import type { ExcalidrawElement } from '@excalidraw/excalidraw/element/types';
+import { useAuth } from '@clerk/nextjs';
 import { useCanvasStore, type CollaboratorPresence } from '@/store/canvas-store';
 
 // Dynamically import Excalidraw with SSR disabled to prevent 'window is not defined'
@@ -82,6 +83,7 @@ export function WhiteboardCanvas({
   wsUrl,
 }: WhiteboardCanvasProps) {
   const { theme } = useCanvasStore();
+  const { getToken } = useAuth();
   const [excalidrawApi, setExcalidrawApi] = useState<ExcalidrawImperativeAPI | null>(null);
   const excalidrawApiRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const [isConnected, setIsConnected] = useState<boolean>(false);
@@ -180,19 +182,37 @@ export function WhiteboardCanvas({
 
     yElementsMap.observe(handleYjsChange);
 
-    // Resolve WebSocket endpoint (fallback to localhost:4000 if not specified)
-    const socketEndpoint =
-      wsUrl ||
-      (typeof window !== 'undefined'
-        ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.hostname}:4000/ws`
-        : 'ws://localhost:4000/ws');
-
     let ws: WebSocket | null = null;
     let reconnectTimeout: NodeJS.Timeout | null = null;
     let isDisposed = false;
 
-    const connectWebSocket = () => {
+    const connectWebSocket = async () => {
       if (isDisposed) return;
+
+      let token: string | null = null;
+      try {
+        token = await getToken();
+      } catch {
+        // Fallback to guest if unauthenticated or error
+      }
+
+      if (isDisposed) return;
+
+      const baseEndpoint =
+        wsUrl ||
+        (typeof window !== 'undefined'
+          ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.hostname}:4000/ws`
+          : 'ws://localhost:4000/ws');
+
+      let socketEndpoint = baseEndpoint;
+      try {
+        const urlObj = new URL(baseEndpoint);
+        if (token) {
+          urlObj.searchParams.set('token', token);
+        }
+        urlObj.searchParams.set('roomId', roomId);
+        socketEndpoint = urlObj.toString();
+      } catch {}
 
       try {
         ws = new WebSocket(socketEndpoint);

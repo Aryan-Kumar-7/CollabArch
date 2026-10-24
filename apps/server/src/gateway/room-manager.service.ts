@@ -16,6 +16,9 @@ export interface ConnectedPeer {
   userName: string;
   color: string;
   joinedAt: Date;
+  email?: string;
+  avatarUrl?: string | null;
+  isGuest?: boolean;
 }
 
 export interface RoomSession {
@@ -88,7 +91,15 @@ export class RoomManagerService {
   joinRoom(
     roomId: string,
     socket: WebSocket,
-    userInfo?: { userId?: string; userName?: string; color?: string; socketId?: string }
+    userInfo?: {
+      userId?: string;
+      userName?: string;
+      color?: string;
+      socketId?: string;
+      email?: string;
+      avatarUrl?: string | null;
+      isGuest?: boolean;
+    }
   ): { session: RoomSession; peer: ConnectedPeer; isFirstPeerOnNode: boolean } {
     // If socket was already registered in a different room, clean up first
     const existingRoomId = this.socketToRoom.get(socket);
@@ -129,6 +140,9 @@ export class RoomManagerService {
       userName,
       color,
       joinedAt: new Date(),
+      email: userInfo?.email,
+      avatarUrl: userInfo?.avatarUrl,
+      isGuest: userInfo?.isGuest ?? true,
     };
 
     session.peers.set(socket, peer);

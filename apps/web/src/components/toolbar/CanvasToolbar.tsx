@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import {
   Network,
   Sparkles,
@@ -13,11 +14,12 @@ import {
   WifiOff,
   Share2,
   Check,
+  LayoutDashboard,
 } from 'lucide-react';
+import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from '@clerk/nextjs';
 import { useCanvasStore } from '@/store/canvas-store';
 import { cn } from '@/lib/utils';
 import { RoomMenu } from '@/components/toolbar/RoomMenu';
-import { UserProfileModal } from '@/components/toolbar/UserProfileModal';
 
 export function CanvasToolbar() {
   const {
@@ -31,15 +33,29 @@ export function CanvasToolbar() {
     nodes,
     edges,
     loadStarterTemplate,
+    setUserProfile,
   } = useCanvasStore();
 
   const [mounted, setMounted] = useState(false);
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [hasCopiedLink, setHasCopiedLink] = useState(false);
+  const { user, isLoaded: isUserLoaded } = useUser();
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Sync Clerk authenticated user identity to canvas presence store
+  useEffect(() => {
+    if (isUserLoaded && user) {
+      const displayName =
+        user.fullName ||
+        user.firstName ||
+        user.username ||
+        user.primaryEmailAddress?.emailAddress.split('@')[0] ||
+        'Architect';
+      setUserProfile({ name: displayName });
+    }
+  }, [isUserLoaded, user, setUserProfile]);
 
   const handleCopyRoomLink = () => {
     if (typeof window !== 'undefined') {
@@ -141,7 +157,7 @@ export function CanvasToolbar() {
         </button>
       </div>
 
-      {/* Right: Collaborator Presence & Mode Context Controls & Theme Toggle */}
+      {/* Right: Collaborator Presence & Mode Context Controls & Theme Toggle & Clerk Auth */}
       <div className="flex items-center gap-2 shrink-0">
         {/* Real-time Collaboration Status Badge */}
         <div
@@ -168,25 +184,24 @@ export function CanvasToolbar() {
           )}
         </div>
 
-        {/* Collaborators Stacked Avatars & User Profile Opener */}
-        <button
-          onClick={() => setIsProfileModalOpen(true)}
-          className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800/80 bg-slate-100/80 dark:bg-slate-900/60 px-2 py-1 hover:border-slate-300 dark:hover:border-slate-700 transition-colors text-left whitespace-nowrap shrink-0"
-          title="Click to customize your display name & cursor color"
+        {/* Collaborators Stacked Avatars Presence Badge */}
+        <div
+          className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800/80 bg-slate-100/80 dark:bg-slate-900/60 px-2 py-1 text-left whitespace-nowrap shrink-0"
+          title="Active room collaborators"
         >
           <div className="flex -space-x-1.5 overflow-hidden shrink-0">
-            {collaborators.map((user) => (
+            {collaborators.map((collab) => (
               <div
-                key={user.userId}
+                key={collab.userId}
                 className={cn(
                   'relative inline-flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold text-slate-950 ring-2 ring-white dark:ring-slate-950 transition-transform hover:scale-110 shrink-0',
-                  user.isCurrentUser && 'ring-sky-400'
+                  collab.isCurrentUser && 'ring-sky-400'
                 )}
-                style={{ backgroundColor: user.color }}
-                title={`${user.userName}${user.isCurrentUser ? ' (Click to edit profile)' : ''}`}
+                style={{ backgroundColor: collab.color }}
+                title={`${collab.userName}${collab.isCurrentUser ? ' (You)' : ''}`}
                 suppressHydrationWarning
               >
-                {user.userName.charAt(0).toUpperCase()}
+                {collab.userName.charAt(0).toUpperCase()}
               </div>
             ))}
           </div>
@@ -196,7 +211,7 @@ export function CanvasToolbar() {
           >
             {collaborators.length} online
           </span>
-        </button>
+        </div>
 
         {/* Simulator-Only Controls */}
         {activeMode === 'simulator' ? (
@@ -251,13 +266,42 @@ export function CanvasToolbar() {
             </>
           )}
         </button>
-      </div>
 
-      {/* User Profile Customization Modal */}
-      <UserProfileModal
-        isOpen={isProfileModalOpen}
-        onClose={() => setIsProfileModalOpen(false)}
-      />
+        <div className="h-5 w-[1px] bg-slate-200 dark:bg-slate-800 mx-0.5 shrink-0" />
+
+        {/* Clerk Authentication Controls */}
+        <div className="flex items-center gap-2 shrink-0">
+          <SignedIn>
+            <Link
+              href="/dashboard"
+              className="hidden lg:flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-100/80 dark:bg-slate-900/60 px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:border-sky-500/40 hover:text-sky-600 dark:hover:text-sky-400 transition-all shadow-sm whitespace-nowrap shrink-0"
+              title="Open Workspaces Dashboard"
+            >
+              <LayoutDashboard className="h-3.5 w-3.5 text-sky-500 shrink-0" />
+              <span>Dashboard</span>
+            </Link>
+            <UserButton
+              appearance={{
+                elements: {
+                  avatarBox: 'h-7 w-7 ring-2 ring-sky-500/30 hover:ring-sky-500/70 transition-all',
+                },
+              }}
+            />
+          </SignedIn>
+
+          <SignedOut>
+            <SignInButton mode="modal">
+              <button
+                className="flex items-center gap-1.5 rounded-lg bg-sky-500 hover:bg-sky-600 active:bg-sky-700 px-3 py-1.5 text-xs font-semibold text-white shadow-sm shadow-sky-500/25 transition-all whitespace-nowrap shrink-0"
+                title="Sign in to save architectures and manage workspaces"
+              >
+                Sign In
+              </button>
+            </SignInButton>
+          </SignedOut>
+        </div>
+      </div>
     </header>
   );
 }
+

@@ -9,7 +9,9 @@ import {
 } from '@nestjs/websockets';
 import { Logger } from '@nestjs/common';
 import { Server, WebSocket, RawData } from 'ws';
+import type { IncomingMessage } from 'http';
 import { randomUUID } from 'crypto';
+import { verifyToken } from '@clerk/backend';
 import {
   RoomSyncMessage,
   JoinRoomPayload,
@@ -39,12 +41,65 @@ export class CanvasGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {}
 
   /**
-   * Connection lifecycle hook
+   * Connection lifecycle hook with Clerk JWT verification and guest fallback
    */
-  handleConnection(client: WebSocket) {
+  async handleConnection(client: WebSocket, request?: IncomingMessage) {
     const socketId = randomUUID();
     (client as any).id = socketId;
-    this.logger.log(`[CanvasGateway] New client connected (socketId: ${socketId})`);
+
+    const reqUrl = request?.url || (client as any).url || '';
+    const url = new URL(reqUrl, 'http://localhost:4000');
+    const token = url.searchParams.get('token');
+
+    let user: {
+      userId: string;
+      userName: string;
+      email?: string;
+      avatarUrl?: string | null;
+      isGuest: boolean;
+    } | null = null;
+
+    if (token) {
+      try {
+        const verifiedClaims = await verifyToken(token, {
+          secretKey: process.env.CLERK_SECRET_KEY,
+        });
+        user = {
+          userId: verifiedClaims.sub,
+          userName:
+            (verifiedClaims as any).name ||
+            (verifiedClaims as any).username ||
+            (verifiedClaims as any).email?.split('@')[0] ||
+            'Architect',
+          email: (verifiedClaims as any).email,
+          avatarUrl: (verifiedClaims as any).picture || null,
+          isGuest: false,
+        };
+        this.logger.log(
+          `[CanvasGateway] Verified Clerk user connected: ${user.userName} (${user.userId})`
+        );
+      } catch (err: any) {
+        this.logger.warn(
+          `[CanvasGateway] Invalid or expired Clerk token (${err?.message || err}), falling back to guest`
+        );
+      }
+    }
+
+    // Fallback to ephemeral guest identity if unauthenticated
+    if (!user) {
+      user = {
+        userId: `guest-${randomUUID().slice(0, 6)}`,
+        userName: `Guest (${randomUUID().slice(0, 4)})`,
+        avatarUrl: null,
+        isGuest: true,
+      };
+    }
+
+    (client as any).auth = user;
+
+    this.logger.log(
+      `[CanvasGateway] Client connected (socketId: ${socketId}, user: ${user.userName}, isGuest: ${user.isGuest})`
+    );
 
     // Attach native raw binary frame listener
     client.on('message', (data: RawData, isBinary: boolean) => {
@@ -117,11 +172,18 @@ export class CanvasGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const socketId = (client as any).id || randomUUID();
     (client as any).id = socketId;
 
+    const authUser = (client as any).auth;
+    const finalUserId = authUser && !authUser.isGuest ? authUser.userId : (userId || authUser?.userId);
+    const finalUserName = authUser && !authUser.isGuest ? authUser.userName : (userName || authUser?.userName);
+
     const { session, peer, isFirstPeerOnNode } = this.roomManager.joinRoom(roomId, client, {
-      userId,
-      userName,
+      userId: finalUserId,
+      userName: finalUserName,
       color,
       socketId,
+      email: authUser?.email,
+      avatarUrl: authUser?.avatarUrl,
+      isGuest: authUser?.isGuest ?? true,
     });
 
     // If this is the first client on this node for this room, dynamically subscribe to Redis channels
@@ -187,6 +249,9 @@ export class CanvasGateway implements OnGatewayConnection, OnGatewayDisconnect {
             userId: peer.userId,
             userName: peer.userName,
             color: peer.color,
+            email: peer.email,
+            avatarUrl: peer.avatarUrl,
+            isGuest: peer.isGuest,
           },
           peerCount: session.peers.size,
         },
