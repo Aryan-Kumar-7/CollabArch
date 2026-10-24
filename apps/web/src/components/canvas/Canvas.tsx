@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import {
   ReactFlow,
   Background,
@@ -32,9 +32,10 @@ const nodeTypes: NodeTypes = {
 
 export function Canvas() {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
-  const { screenToFlowPosition, setViewport } = useReactFlow();
+  const { screenToFlowPosition, fitView } = useReactFlow();
 
   const {
+    activeMode,
     nodes,
     edges,
     onNodesChange,
@@ -47,6 +48,16 @@ export function Canvas() {
     selectedEdgeId,
     theme,
   } = useCanvasStore();
+
+  // Auto-center canvas whenever switching into simulator mode or when nodes change
+  useEffect(() => {
+    if (activeMode === 'simulator') {
+      const timer = setTimeout(() => {
+        fitView({ padding: 0.3, duration: 400 });
+      }, 60);
+      return () => clearTimeout(timer);
+    }
+  }, [activeMode, fitView]);
 
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault();

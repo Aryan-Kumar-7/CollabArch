@@ -2,9 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  ZoomIn,
-  ZoomOut,
-  Maximize2,
   Sliders,
   Layers3,
   Network,
@@ -20,12 +17,10 @@ import {
   Wifi,
   WifiOff,
 } from 'lucide-react';
-import { useReactFlow } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvas-store';
 import { cn } from '@/lib/utils';
 
 export function CanvasToolbar() {
-  const { zoomIn, zoomOut, fitView } = useReactFlow();
   const {
     activeMode,
     setActiveMode,
@@ -197,33 +192,6 @@ export function CanvasToolbar() {
         {/* Simulator-Only Controls */}
         {activeMode === 'simulator' ? (
           <>
-            {/* Zoom / Viewport Controls */}
-            <div className="hidden xl:flex items-center gap-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100/80 dark:bg-slate-900/80 p-1 shadow-inner">
-              <button
-                onClick={() => zoomIn({ duration: 200 })}
-                className="rounded-lg p-1.5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
-                title="Zoom In"
-              >
-                <ZoomIn className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => zoomOut({ duration: 200 })}
-                className="rounded-lg p-1.5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
-                title="Zoom Out"
-              >
-                <ZoomOut className="h-4 w-4" />
-              </button>
-              <div className="h-4 w-[1px] bg-slate-200 dark:bg-slate-800 mx-0.5" />
-              <button
-                onClick={() => fitView({ padding: 0.2, duration: 400 })}
-                className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
-                title="Fit to Screen"
-              >
-                <Maximize2 className="h-3.5 w-3.5" />
-                <span className="text-[11px] font-medium">Fit</span>
-              </button>
-            </div>
-
             {/* Quick Actions */}
             <button
               onClick={handleExportJson}
