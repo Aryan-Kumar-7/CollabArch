@@ -50,6 +50,9 @@ importers:
       rxjs:
         specifier: ^7.8.1
         version: 7.8.2
+      svix:
+        specifier: ^2.9.0
+        version: 2.9.0
       ws:
         specifier: ^8.18.0
         version: 8.22.0
@@ -2921,6 +2924,10 @@ packages:
   supports-preserve-symlinks-flag@1.0.0:
     resolution: {integrity: sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w==}
     engines: {node: '>= 0.4'}
+
+  svix@2.9.0:
+    resolution: {integrity: sha512-nAHGMr8fqGMeX+La2isqASxSFn3I8UB9QpswF/0lzIgO28yVvLPKgO8tWrx0+47BYueGacRKh7MUe8jYNl5eGg==}
+    engines: {node: '>=22'}
 
   swr@2.3.4:
     resolution: {integrity: sha512-bYd2lrhc+VarcpkgWclcUi92wYCpOgMws9Sd1hG1ntAu0NEy+14CbotuFjshBU2kt9rYj9TSmDcybpxpeTU1fg==}
@@ -6187,6 +6194,10 @@ snapshots:
       has-flag: 4.0.0
 
   supports-preserve-symlinks-flag@1.0.0: {}
+
+  svix@2.9.0:
+    dependencies:
+      standardwebhooks: 1.1.1
 
   swr@2.3.4(react@18.3.1):
     dependencies:

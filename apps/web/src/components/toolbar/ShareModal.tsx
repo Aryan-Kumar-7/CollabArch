@@ -15,6 +15,7 @@ import {
   User,
   ChevronDown,
   Download,
+  AlertCircle,
 } from 'lucide-react';
 import { useCanvasStore, type CollaboratorPresence } from '@/store/canvas-store';
 import { useUser } from '@clerk/nextjs';
@@ -36,6 +37,7 @@ export function ShareModal({ isOpen, onClose }: ShareModalProps) {
   const [shareUrl, setShareUrl] = useState('');
   const [showUpdatedBadge, setShowUpdatedBadge] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Fetch current room metadata and set initial visibility state on mount / modal open
   useEffect(() => {
@@ -55,7 +57,9 @@ export function ShareModal({ isOpen, onClose }: ShareModalProps) {
   }, [isOpen, roomId]);
 
   const handleVisibilityChange = async (newVisibility: VisibilityType) => {
+    const previousVisibility = visibility;
     setVisibility(newVisibility);
+    setErrorMessage(null);
     setIsUpdating(true);
     try {
       const res = await fetch(`http://localhost:4000/rooms/${roomId}/visibility`, {
@@ -69,8 +73,17 @@ export function ShareModal({ isOpen, onClose }: ShareModalProps) {
       if (res.ok) {
         setShowUpdatedBadge(true);
         setTimeout(() => setShowUpdatedBadge(false), 2500);
+      } else {
+        const errorData = await res.json().catch(() => null);
+        setVisibility(previousVisibility);
+        setErrorMessage(
+          errorData?.message ||
+            'Permission denied: Only the room owner or a workspace admin can modify visibility.'
+        );
       }
-    } catch (err) {
+    } catch (err: any) {
+      setVisibility(previousVisibility);
+      setErrorMessage('Network error while updating room visibility.');
       console.error('Failed to update room visibility:', err);
     } finally {
       setIsUpdating(false);
@@ -200,7 +213,7 @@ export function ShareModal({ isOpen, onClose }: ShareModalProps) {
             </div>
           </div>
 
-          {/* Visibility Selector */}
+            {/* Visibility Selector */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
@@ -213,6 +226,21 @@ export function ShareModal({ isOpen, onClose }: ShareModalProps) {
                 </span>
               )}
             </div>
+
+            {errorMessage && (
+              <div className="mb-3 flex items-center gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 text-xs animate-in fade-in duration-150">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span className="flex-1">{errorMessage}</span>
+                <button
+                  type="button"
+                  onClick={() => setErrorMessage(null)}
+                  className="text-red-400 hover:text-red-600"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
+
             <div className="space-y-2">
               {visibilityOptions.map((opt) => {
                 const Icon = opt.icon;

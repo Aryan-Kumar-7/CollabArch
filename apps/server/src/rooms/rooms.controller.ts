@@ -1,5 +1,7 @@
-import { Controller, Get, Post, Patch, Delete, Param, Query, Body } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Query, Body, ForbiddenException } from '@nestjs/common';
 import { RoomsService, CreateRoomDto } from './rooms.service';
+import { CurrentUser } from '../auth/current-user.decorator';
+import { AuthenticatedUser } from '../auth/auth.types';
 
 @Controller('rooms')
 export class RoomsController {
@@ -26,9 +28,14 @@ export class RoomsController {
   @Patch(':slug/visibility')
   async updateVisibility(
     @Param('slug') slug: string,
-    @Body() body: { visibility: 'PUBLIC_LINK' | 'WORKSPACE' | 'PRIVATE'; userId?: string }
+    @Body() body: { visibility: 'PUBLIC_LINK' | 'WORKSPACE' | 'PRIVATE'; userId?: string },
+    @CurrentUser() authUser?: AuthenticatedUser
   ) {
-    return this.roomsService.updateVisibility(slug, body.visibility, body.userId);
+    const userId = body.userId || authUser?.userId;
+    if (!userId) {
+      throw new ForbiddenException('User authentication required to update room visibility');
+    }
+    return this.roomsService.updateVisibility(slug, body.visibility, userId);
   }
 
   @Delete(':slug')

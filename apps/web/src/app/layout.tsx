@@ -11,6 +11,8 @@ export const metadata: Metadata = {
     'Distributed systems design studio with CRDT synchronization and interactive network traffic simulation engine.',
 };
 
+import { UserSyncProvider } from '@/components/auth/UserSyncProvider';
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -37,7 +39,9 @@ export default function RootLayout({
           />
         </head>
         <body className={`${inter.className} antialiased bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 min-h-screen transition-colors duration-200`}>
-          {children}
+          <UserSyncProvider>
+            {children}
+          </UserSyncProvider>
         </body>
       </html>
     </ClerkProvider>

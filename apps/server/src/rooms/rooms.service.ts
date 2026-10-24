@@ -350,12 +350,12 @@ export class RoomsService {
 
   /**
    * Updates room visibility permissions (PUBLIC_LINK, WORKSPACE, PRIVATE).
-   * Verifies that caller is the owner if authenticated.
+   * Verifies that caller is either the room owner or a workspace admin.
    */
   async updateVisibility(
     slug: string,
     visibility: 'PUBLIC_LINK' | 'WORKSPACE' | 'PRIVATE',
-    userId?: string
+    userId: string
   ) {
     const room = await this.prisma.canvasRoom.findUnique({
       where: { slug },
@@ -365,9 +365,30 @@ export class RoomsService {
       throw new NotFoundException(`Room with slug "${slug}" not found`);
     }
 
-    // Verify caller is the room's owner if user id is provided and room has a non-guest owner
-    if (userId && room.ownerId && room.ownerId !== 'user_guest_default' && room.ownerId !== userId) {
-      throw new ForbiddenException('You do not have permission to modify visibility for this canvas.');
+    if (!userId) {
+      throw new ForbiddenException('User authentication required to update room visibility');
+    }
+
+    // Check room ownership: only the owner or workspace admin can change visibility
+    const isOwner = room.ownerId === userId;
+    let isWorkspaceAdmin = false;
+
+    if (!isOwner && room.workspaceId) {
+      const member = await this.prisma.workspaceMember.findUnique({
+        where: {
+          userId_workspaceId: {
+            userId,
+            workspaceId: room.workspaceId,
+          },
+        },
+      });
+      isWorkspaceAdmin = member?.role === 'ADMIN';
+    }
+
+    if (!isOwner && !isWorkspaceAdmin) {
+      throw new ForbiddenException(
+        'Only the room owner or a workspace admin can modify visibility for this canvas.'
+      );
     }
 
     const updatedRoom = await this.prisma.canvasRoom.update({
@@ -380,7 +401,9 @@ export class RoomsService {
       },
     });
 
-    this.logger.log(`[RoomsService] Updated room "${slug}" visibility to ${visibility}`);
+    this.logger.log(
+      `[RoomsService] Updated room "${slug}" visibility to ${visibility} by user ${userId}`
+    );
 
     return {
       id: updatedRoom.id,

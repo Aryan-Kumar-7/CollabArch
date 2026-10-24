@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { UserButton, useUser, OrganizationSwitcher, useOrganization } from '@clerk/nextjs';
+import { UserButton, useUser, useAuth, OrganizationSwitcher, useOrganization } from '@clerk/nextjs';
 import {
   Network,
   Plus,
@@ -15,24 +15,90 @@ import {
   FolderKanban,
   ArrowRight,
   ExternalLink,
+  ChevronDown,
+  Check,
 } from 'lucide-react';
 import { CreateCanvasModal } from '@/components/dashboard/CreateCanvasModal';
 import { CanvasCard, type CanvasRoomCardData } from '@/components/dashboard/CanvasCard';
 
+export interface WorkspaceItem {
+  id: string;
+  name: string;
+  slug: string;
+  clerkOrgId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  members?: Array<{
+    id: string;
+    userId: string;
+    role: string;
+  }>;
+  _count?: {
+    rooms: number;
+    members: number;
+  };
+}
+
 export default function DashboardPage() {
   const { user, isLoaded } = useUser();
+  const { getToken } = useAuth();
   const { organization, isLoaded: isOrgLoaded } = useOrganization();
+
+  const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([]);
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>('all');
+  const [isWorkspaceDropdownOpen, setIsWorkspaceDropdownOpen] = useState(false);
+
   const [rooms, setRooms] = useState<CanvasRoomCardData[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  const fetchWorkspaces = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const token = await getToken().catch(() => null);
+      const headers: Record<string, string> = {
+        'x-user-id': user.id,
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const res = await fetch('http://localhost:4000/workspaces', { headers });
+      if (res.ok) {
+        const data: WorkspaceItem[] = await res.json();
+        setWorkspaces(data);
+      }
+    } catch (err) {
+      console.error('Failed to load user workspaces:', err);
+    }
+  }, [user?.id, getToken]);
+
+  useEffect(() => {
+    fetchWorkspaces();
+  }, [fetchWorkspaces]);
+
+  // Synchronize Clerk active organization with workspace selector
+  useEffect(() => {
+    if (organization?.id && workspaces.length > 0) {
+      const match = workspaces.find(
+        (w) => w.clerkOrgId === organization.id || w.id === organization.id
+      );
+      if (match) {
+        setSelectedWorkspaceId(match.id);
+      }
+    }
+  }, [organization?.id, workspaces]);
+
   const fetchRooms = useCallback(async () => {
     setIsLoading(true);
     try {
-      const url = organization?.id
-        ? `http://localhost:4000/rooms?workspaceId=${organization.id}`
-        : 'http://localhost:4000/rooms';
+      let url = 'http://localhost:4000/rooms';
+      if (selectedWorkspaceId && selectedWorkspaceId !== 'all') {
+        url = `http://localhost:4000/rooms?workspaceId=${selectedWorkspaceId}`;
+      } else if (organization?.id) {
+        url = `http://localhost:4000/rooms?workspaceId=${organization.id}`;
+      }
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
@@ -43,7 +109,7 @@ export default function DashboardPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [organization?.id]);
+  }, [selectedWorkspaceId, organization?.id]);
 
   useEffect(() => {
     fetchRooms();
@@ -53,9 +119,11 @@ export default function DashboardPage() {
     setRooms((prev) => prev.filter((r) => r.slug !== deletedSlug));
   };
 
+  const activeWorkspace = workspaces.find((w) => w.id === selectedWorkspaceId);
+
   const filteredRooms = rooms.filter((r) => {
-    // When an organization is active, filter dashboard rooms by workspaceId: organization.id
-    if (organization?.id && r.workspaceId && r.workspaceId !== organization.id) {
+    // When an explicit workspace is selected, filter rooms accordingly
+    if (selectedWorkspaceId && selectedWorkspaceId !== 'all' && r.workspaceId && r.workspaceId !== selectedWorkspaceId) {
       return false;
     }
     return (
@@ -80,9 +148,66 @@ export default function DashboardPage() {
                 <span className="text-base font-bold tracking-tight text-slate-900 dark:text-white">
                   CollabArch
                 </span>
-                <span className="rounded-full bg-sky-500/10 border border-sky-500/30 px-2 py-0.5 text-[10px] font-semibold text-sky-600 dark:text-sky-400">
-                  Workspaces
-                </span>
+                <span className="text-slate-400 dark:text-slate-600 font-medium text-xs">/</span>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIsWorkspaceDropdownOpen(!isWorkspaceDropdownOpen)}
+                    className="flex items-center gap-1.5 rounded-full bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 px-2.5 py-0.5 text-[11px] font-semibold text-sky-600 dark:text-sky-400 transition-colors"
+                  >
+                    <FolderKanban className="h-3 w-3" />
+                    <span className="max-w-[120px] sm:max-w-[170px] truncate">
+                      {selectedWorkspaceId === 'all'
+                        ? 'All Workspaces'
+                        : activeWorkspace?.name || 'Personal Workspace'}
+                    </span>
+                    <ChevronDown className="h-3 w-3 opacity-60" />
+                  </button>
+
+                  {isWorkspaceDropdownOpen && (
+                    <div
+                      className="absolute left-0 mt-2 w-56 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl py-1.5 z-40 animate-in fade-in zoom-in-95 duration-100"
+                      onMouseLeave={() => setIsWorkspaceDropdownOpen(false)}
+                    >
+                      <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        Select Workspace
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedWorkspaceId('all');
+                          setIsWorkspaceDropdownOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 text-xs font-medium flex items-center justify-between hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ${
+                          selectedWorkspaceId === 'all'
+                            ? 'text-sky-500 font-bold'
+                            : 'text-slate-700 dark:text-slate-300'
+                        }`}
+                      >
+                        <span>All Canvases</span>
+                        {selectedWorkspaceId === 'all' && <Check className="h-3.5 w-3.5" />}
+                      </button>
+                      {workspaces.map((ws) => (
+                        <button
+                          key={ws.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedWorkspaceId(ws.id);
+                            setIsWorkspaceDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-xs font-medium flex items-center justify-between hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ${
+                            selectedWorkspaceId === ws.id
+                              ? 'text-sky-500 font-bold'
+                              : 'text-slate-700 dark:text-slate-300'
+                          }`}
+                        >
+                          <span className="truncate">{ws.name}</span>
+                          {selectedWorkspaceId === ws.id && <Check className="h-3.5 w-3.5" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </Link>
@@ -146,7 +271,9 @@ export default function DashboardPage() {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
             <div>
               <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-                Engineering Workspaces
+                {selectedWorkspaceId === 'all'
+                  ? 'Engineering Workspaces'
+                  : `${activeWorkspace?.name || 'Workspace'} Architecture`}
               </h1>
               <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                 Collaborative distributed systems design studio with CRDT state synchronization.
@@ -285,7 +412,11 @@ export default function DashboardPage() {
       <CreateCanvasModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        workspaceId={organization?.id}
+        workspaceId={
+          selectedWorkspaceId !== 'all'
+            ? selectedWorkspaceId
+            : activeWorkspace?.id || organization?.id || workspaces[0]?.id
+        }
       />
     </div>
   );
