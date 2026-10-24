@@ -29,7 +29,24 @@ export type ReactFlowEdge = Edge<{
   protocol?: string;
 }>;
 
+export type CanvasStudioMode = 'whiteboard' | 'simulator';
+
+export interface CollaboratorPresence {
+  userId: string;
+  userName: string;
+  color: string;
+  isCurrentUser?: boolean;
+}
+
 interface CanvasState {
+  // Studio Mode & Room Metadata
+  activeMode: CanvasStudioMode;
+  roomId: string;
+  collaborators: CollaboratorPresence[];
+  setActiveMode: (mode: CanvasStudioMode) => void;
+  setRoomId: (roomId: string) => void;
+  setCollaborators: (collaborators: CollaboratorPresence[]) => void;
+
   // Graph State
   nodes: ReactFlowNode[];
   edges: ReactFlowEdge[];
@@ -199,6 +216,11 @@ const INITIAL_EDGES: ReactFlowEdge[] = [
 ];
 
 export const useCanvasStore = create<CanvasState>((set, get) => ({
+  activeMode: 'whiteboard',
+  roomId: 'demo-room',
+  collaborators: [
+    { userId: 'user-me', userName: 'You (Architect)', color: '#38bdf8', isCurrentUser: true },
+  ],
   nodes: INITIAL_NODES,
   edges: INITIAL_EDGES,
   selectedNodeId: 'node-order-svc',
@@ -206,6 +228,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   viewport: { x: 100, y: 80, zoom: 0.9 },
   isSidebarOpen: true,
   isInspectorOpen: true,
+
+  setActiveMode: (mode) => set({ activeMode: mode }),
+  setRoomId: (roomId) => set({ roomId }),
+  setCollaborators: (collaborators) => set({ collaborators }),
 
   setNodes: (nodes) => set({ nodes }),
   setEdges: (edges) => set({ edges }),
