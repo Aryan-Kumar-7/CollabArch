@@ -8,6 +8,7 @@ import { CanvasToolbar } from '@/components/toolbar/CanvasToolbar';
 import { ComponentPalette } from '@/components/sidebar/ComponentPalette';
 import { NodeInspector } from '@/components/inspector/NodeInspector';
 import { Canvas } from '@/components/canvas/Canvas';
+import { CanvasStatusHud } from '@/components/canvas/CanvasStatusHud';
 import { useCanvasStore } from '@/store/canvas-store';
 import { cn } from '@/lib/utils';
 
@@ -85,6 +86,7 @@ export function StudioCanvas({ initialRoomId }: StudioCanvasProps) {
             <NodeInspector />
           </div>
         </div>
+        <CanvasStatusHud />
       </main>
     </ReactFlowProvider>
   );

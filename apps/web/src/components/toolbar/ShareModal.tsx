@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Share2,
@@ -13,6 +14,7 @@ import {
   ShieldCheck,
   User,
   ChevronDown,
+  Download,
 } from 'lucide-react';
 import { useCanvasStore, type CollaboratorPresence } from '@/store/canvas-store';
 import { useUser } from '@clerk/nextjs';
@@ -25,13 +27,31 @@ interface ShareModalProps {
 type VisibilityType = 'WORKSPACE' | 'PUBLIC_LINK' | 'PRIVATE';
 
 export function ShareModal({ isOpen, onClose }: ShareModalProps) {
-  const { roomId, collaborators } = useCanvasStore();
+  const { roomId, collaborators, nodes, edges } = useCanvasStore();
   const { user } = useUser();
 
   const [hasCopied, setHasCopied] = useState(false);
   const [visibility, setVisibility] = useState<VisibilityType>('PUBLIC_LINK');
   const [role, setRole] = useState<'editor' | 'viewer'>('editor');
   const [shareUrl, setShareUrl] = useState('');
+
+  const handleExportJson = () => {
+    const dataStr =
+      'data:text/json;charset=utf-8,' +
+      encodeURIComponent(JSON.stringify({ nodes, edges }, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute('href', dataStr);
+    downloadAnchor.setAttribute('download', `collabarch-${roomId}-topology.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  };
+
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -40,7 +60,7 @@ export function ShareModal({ isOpen, onClose }: ShareModalProps) {
     }
   }, [roomId]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
   const handleCopyLink = () => {
     if (shareUrl) {
@@ -77,14 +97,14 @@ export function ShareModal({ isOpen, onClose }: ShareModalProps) {
     },
   ];
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150">
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150">
       <div
-        className="relative w-full max-w-lg rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden transition-colors"
+        className="relative w-full max-w-lg max-h-[85vh] flex flex-col rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden transition-colors"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/10 text-sky-500">
               <Share2 className="h-4 w-4" />
@@ -106,7 +126,7 @@ export function ShareModal({ isOpen, onClose }: ShareModalProps) {
           </button>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 overflow-y-auto flex-1">
           {/* Quick Copy Link Row */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
@@ -252,7 +272,16 @@ export function ShareModal({ isOpen, onClose }: ShareModalProps) {
         </div>
 
         {/* Modal Footer */}
-        <div className="flex items-center justify-end px-6 py-3.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/30">
+        <div className="flex items-center justify-between px-6 py-3.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/30 shrink-0">
+          <button
+            onClick={handleExportJson}
+            className="flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shadow-sm"
+            title="Download architecture nodes and edges as JSON"
+          >
+            <Download className="h-3.5 w-3.5 text-slate-400" />
+            <span>Export Topology JSON</span>
+          </button>
+
           <button
             onClick={onClose}
             className="rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 px-4 py-2 text-xs font-semibold shadow-sm transition-colors"
@@ -261,6 +290,7 @@ export function ShareModal({ isOpen, onClose }: ShareModalProps) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

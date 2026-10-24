@@ -115,22 +115,22 @@ export function RoomMenu() {
       <button
         onClick={() => setIsOpen((prev) => !prev)}
         className={cn(
-          'flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs transition-all duration-150 shadow-sm whitespace-nowrap shrink-0',
+          'flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs transition-all duration-150 shadow-sm shrink-0 group',
           isOpen
             ? 'border-sky-500/50 bg-sky-500/10 text-sky-600 dark:text-sky-300 ring-2 ring-sky-500/20'
             : 'border-slate-200 dark:border-slate-800/90 bg-slate-100/80 dark:bg-slate-900/80 text-slate-700 dark:text-slate-200 hover:border-slate-300 dark:hover:border-slate-700'
         )}
-        title="Manage or Switch Rooms"
+        title="Manage or Switch Architecture Canvases"
       >
-        <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500 whitespace-nowrap">
-          Room
-        </span>
-        <span className="font-mono text-[11px] font-semibold" suppressHydrationWarning>
+        <span
+          className="font-semibold text-xs max-w-[110px] sm:max-w-[160px] truncate block text-slate-800 dark:text-slate-100 tracking-tight"
+          suppressHydrationWarning
+        >
           {mounted ? roomId : 'arch-main'}
         </span>
         <ChevronDown
           className={cn(
-            'h-3 w-3 text-slate-400 transition-transform duration-200',
+            'h-3.5 w-3.5 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-transform duration-200 shrink-0',
             isOpen && 'rotate-180 text-sky-500'
           )}
         />
