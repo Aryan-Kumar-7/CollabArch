@@ -47,6 +47,11 @@ interface CanvasState {
   setRoomId: (roomId: string) => void;
   setCollaborators: (collaborators: CollaboratorPresence[]) => void;
 
+  // Theme State
+  theme: 'light' | 'dark';
+  toggleTheme: () => void;
+  setTheme: (theme: 'light' | 'dark') => void;
+
   // Graph State
   nodes: ReactFlowNode[];
   edges: ReactFlowEdge[];
@@ -215,12 +220,47 @@ const INITIAL_EDGES: ReactFlowEdge[] = [
   },
 ];
 
+function getInitialTheme(): 'light' | 'dark' {
+  if (typeof window === 'undefined') {
+    return 'light';
+  }
+  try {
+    const stored = localStorage.getItem('collabarch_theme');
+    if (stored === 'light' || stored === 'dark') {
+      return stored;
+    }
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      return 'dark';
+    }
+  } catch {
+    // Fallback if localStorage or matchMedia is inaccessible
+  }
+  return 'light';
+}
+
+function applyThemeToDom(newTheme: 'light' | 'dark') {
+  if (typeof document !== 'undefined') {
+    document.documentElement.classList.toggle('dark', newTheme === 'dark');
+    try {
+      localStorage.setItem('collabarch_theme', newTheme);
+    } catch {
+      // Fallback
+    }
+  }
+}
+
+const initialTheme = getInitialTheme();
+if (typeof document !== 'undefined') {
+  applyThemeToDom(initialTheme);
+}
+
 export const useCanvasStore = create<CanvasState>((set, get) => ({
   activeMode: 'whiteboard',
   roomId: 'demo-room',
   collaborators: [
     { userId: 'user-me', userName: 'You (Architect)', color: '#38bdf8', isCurrentUser: true },
   ],
+  theme: initialTheme,
   nodes: INITIAL_NODES,
   edges: INITIAL_EDGES,
   selectedNodeId: 'node-order-svc',
@@ -232,6 +272,17 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   setActiveMode: (mode) => set({ activeMode: mode }),
   setRoomId: (roomId) => set({ roomId }),
   setCollaborators: (collaborators) => set({ collaborators }),
+
+  toggleTheme: () => {
+    const newTheme = get().theme === 'dark' ? 'light' : 'dark';
+    applyThemeToDom(newTheme);
+    set({ theme: newTheme });
+  },
+
+  setTheme: (theme) => {
+    applyThemeToDom(theme);
+    set({ theme });
+  },
 
   setNodes: (nodes) => set({ nodes }),
   setEdges: (edges) => set({ edges }),

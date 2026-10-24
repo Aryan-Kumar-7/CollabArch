@@ -24,8 +24,8 @@ const Excalidraw = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-slate-950 text-slate-400">
-        <Loader2 className="h-8 w-8 animate-spin text-sky-400" />
+      <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400">
+        <Loader2 className="h-8 w-8 animate-spin text-sky-500 dark:text-sky-400" />
         <span className="text-sm font-medium tracking-wide">
           Loading Freehand Whiteboard Canvas...
         </span>
@@ -80,10 +80,23 @@ export function WhiteboardCanvas({
   userColor = '#38bdf8',
   wsUrl,
 }: WhiteboardCanvasProps) {
+  const { theme } = useCanvasStore();
   const [excalidrawApi, setExcalidrawApi] = useState<ExcalidrawImperativeAPI | null>(null);
   const excalidrawApiRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [peerCount, setPeerCount] = useState<number>(1);
+
+  // Sync theme changes to Excalidraw runtime state
+  useEffect(() => {
+    if (excalidrawApi) {
+      excalidrawApi.updateScene({
+        appState: {
+          theme,
+          viewBackgroundColor: theme === 'dark' ? '#0f172a' : '#ffffff',
+        },
+      });
+    }
+  }, [theme, excalidrawApi]);
 
   // Yjs CRDT Document & Elements Map
   const yDocRef = useRef<Y.Doc | null>(null);
@@ -373,27 +386,27 @@ export function WhiteboardCanvas({
   );
 
   return (
-    <div className="relative flex-1 h-full w-full overflow-hidden bg-slate-950">
+    <div className="relative flex-1 h-full w-full overflow-hidden bg-slate-50 dark:bg-slate-950">
       {/* Real-time Collaboration Status Badge */}
-      <div className="absolute top-3 right-3 z-30 flex items-center gap-2 rounded-xl border border-slate-800/90 bg-slate-900/90 px-3 py-1.5 shadow-lg backdrop-blur-md">
+      <div className="absolute top-3 right-3 z-30 flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-800/90 bg-white/90 dark:bg-slate-900/90 px-3 py-1.5 shadow-lg backdrop-blur-md">
         <div className="flex items-center gap-1.5">
           {isConnected ? (
             <>
               <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-              <Wifi className="h-3.5 w-3.5 text-emerald-400" />
-              <span className="text-xs font-medium text-slate-300">Live Sync</span>
+              <Wifi className="h-3.5 w-3.5 text-emerald-500 dark:text-emerald-400" />
+              <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Live Sync</span>
             </>
           ) : (
             <>
               <span className="flex h-2 w-2 rounded-full bg-amber-400" />
-              <WifiOff className="h-3.5 w-3.5 text-amber-400" />
-              <span className="text-xs font-medium text-slate-400">Local Only</span>
+              <WifiOff className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400" />
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Local Only</span>
             </>
           )}
         </div>
-        <div className="h-3 w-[1px] bg-slate-800" />
-        <div className="flex items-center gap-1 text-xs text-slate-400">
-          <Users className="h-3.5 w-3.5 text-sky-400" />
+        <div className="h-3 w-[1px] bg-slate-200 dark:bg-slate-800" />
+        <div className="flex items-center gap-1 text-xs text-slate-600 dark:text-slate-400">
+          <Users className="h-3.5 w-3.5 text-sky-500 dark:text-sky-400" />
           <span>
             {peerCount} {peerCount === 1 ? 'collaborator' : 'collaborators'}
           </span>
@@ -407,13 +420,14 @@ export function WhiteboardCanvas({
             setExcalidrawApi(api);
             excalidrawApiRef.current = api;
           }}
+          theme={theme}
           onChange={handleExcalidrawChange}
           onPointerUpdate={handlePointerUpdate}
           initialData={{
             appState: {
-              theme: 'light',
-              viewBackgroundColor: '#ffffff',
-              currentItemStrokeColor: '#1e1e1e',
+              theme,
+              viewBackgroundColor: theme === 'dark' ? '#0f172a' : '#ffffff',
+              currentItemStrokeColor: theme === 'dark' ? '#f8fafc' : '#1e1e1e',
               currentItemBackgroundColor: 'transparent',
               currentItemFillStyle: 'solid',
               currentItemStrokeWidth: 2,
