@@ -44,6 +44,15 @@ export class CommentsController {
     return this.commentsService.updateComment(id, user.userId, dto);
   }
 
+  @Patch('comments/:id/resolve')
+  @UseGuards(ClerkAuthGuard)
+  async resolveComment(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser
+  ) {
+    return this.commentsService.updateComment(id, user.userId, { isResolved: true });
+  }
+
   @Delete('comments/:id')
   @UseGuards(ClerkAuthGuard)
   async deleteComment(

@@ -19,6 +19,7 @@ import {
   DatabaseNode,
   QueueNode,
 } from '@/components/nodes/ArchitectureNodes';
+import { CommentsOverlay } from '@/components/comments/CommentsOverlay';
 import {
   useCanvasStore,
   type ReactFlowNode,
@@ -55,6 +56,9 @@ export function Canvas() {
     toggleSidebar,
     isInspectorOpen,
     toggleInspector,
+    isCommentMode,
+    newCommentTarget,
+    setNewCommentTarget,
   } = useCanvasStore();
 
   // Auto-center canvas whenever switching into simulator mode or when nodes change
@@ -109,11 +113,29 @@ export function Canvas() {
         onNodesChange={userRole !== 'viewer' ? onNodesChange : undefined}
         onEdgesChange={userRole !== 'viewer' ? onEdgesChange : undefined}
         onConnect={userRole !== 'viewer' ? onConnect : undefined}
-        onNodeClick={(_, node) => setSelectedNodeId(node.id)}
+        onNodeClick={(_, node) => {
+          if (isCommentMode) {
+            setNewCommentTarget({
+              nodeId: node.id,
+              posX: Math.round(node.position.x + 230),
+              posY: Math.round(node.position.y - 12),
+            });
+          } else {
+            setSelectedNodeId(node.id);
+          }
+        }}
         onEdgeClick={(_, edge) => setSelectedEdgeId(edge.id)}
-        onPaneClick={() => {
-          setSelectedNodeId(null);
-          setSelectedEdgeId(null);
+        onPaneClick={(event) => {
+          if (isCommentMode) {
+            const flowPos = screenToFlowPosition({ x: event.clientX, y: event.clientY });
+            setNewCommentTarget({
+              posX: Math.round(flowPos.x),
+              posY: Math.round(flowPos.y),
+            });
+          } else {
+            setSelectedNodeId(null);
+            setSelectedEdgeId(null);
+          }
         }}
         onDragOver={onDragOver}
         onDrop={onDrop}
@@ -128,8 +150,9 @@ export function Canvas() {
             strokeWidth: 2,
           },
         }}
-        className="collabarch-flow-canvas"
+        className={cn('collabarch-flow-canvas', isCommentMode && 'cursor-crosshair')}
       >
+        <CommentsOverlay />
         {/* Subtle grid background */}
         <Background
           variant={BackgroundVariant.Dots}

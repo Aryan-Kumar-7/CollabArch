@@ -44,4 +44,13 @@ export class RevisionsController {
   ) {
     return this.revisionsService.restoreRevision(id, user.userId);
   }
+
+  @Post('rooms/:slug/revisions/:id/restore')
+  @UseGuards(ClerkAuthGuard)
+  async restoreRoomRevision(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser
+  ) {
+    return this.revisionsService.restoreRevision(id, user.userId);
+  }
 }

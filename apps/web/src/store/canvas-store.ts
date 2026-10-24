@@ -109,6 +109,17 @@ interface CanvasState {
   setSidebarOpen: (open: boolean) => void;
   setInspectorOpen: (open: boolean) => void;
 
+  // History & Comments Tooling
+  isHistoryOpen: boolean;
+  setIsHistoryOpen: (open: boolean) => void;
+  toggleHistory: () => void;
+
+  isCommentMode: boolean;
+  setIsCommentMode: (active: boolean) => void;
+  toggleCommentMode: () => void;
+  newCommentTarget: { nodeId?: string; posX?: number; posY?: number } | null;
+  setNewCommentTarget: (target: { nodeId?: string; posX?: number; posY?: number } | null) => void;
+
   // Canvas Templates
   loadStarterTemplate: () => void;
   clearCanvas: () => void;
@@ -485,6 +496,16 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   toggleInspector: () => set((state) => ({ isInspectorOpen: !state.isInspectorOpen })),
   setSidebarOpen: (open) => set({ isSidebarOpen: open }),
   setInspectorOpen: (open) => set({ isInspectorOpen: open }),
+
+  isHistoryOpen: false,
+  setIsHistoryOpen: (open) => set({ isHistoryOpen: open }),
+  toggleHistory: () => set((state) => ({ isHistoryOpen: !state.isHistoryOpen })),
+
+  isCommentMode: false,
+  setIsCommentMode: (active) => set({ isCommentMode: active }),
+  toggleCommentMode: () => set((state) => ({ isCommentMode: !state.isCommentMode })),
+  newCommentTarget: null,
+  setNewCommentTarget: (target) => set({ newCommentTarget: target }),
 
   loadStarterTemplate: () =>
     set({

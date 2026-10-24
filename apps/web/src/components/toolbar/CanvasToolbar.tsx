@@ -11,6 +11,8 @@ import {
   Share2,
   LayoutDashboard,
   Lock,
+  History,
+  MessageSquare,
 } from 'lucide-react';
 import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from '@clerk/nextjs';
 import { useCanvasStore } from '@/store/canvas-store';
@@ -27,6 +29,10 @@ export function CanvasToolbar() {
     toggleTheme,
     setUserProfile,
     userRole,
+    isHistoryOpen,
+    toggleHistory,
+    isCommentMode,
+    toggleCommentMode,
   } = useCanvasStore();
 
   const [mounted, setMounted] = useState(false);
@@ -137,6 +143,36 @@ export function CanvasToolbar() {
             )}
           </div>
         )}
+
+        {/* Architecture Commenting Tool Toggle */}
+        <button
+          onClick={toggleCommentMode}
+          className={cn(
+            'flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-all whitespace-nowrap shrink-0',
+            isCommentMode
+              ? 'bg-sky-500 text-white shadow-sm shadow-sky-500/25 ring-2 ring-sky-400'
+              : 'border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+          )}
+          title={isCommentMode ? 'Exit Comment Mode' : 'Architecture Comments (💬)'}
+        >
+          <MessageSquare className="h-3.5 w-3.5" />
+          <span className="hidden md:inline">Comments</span>
+        </button>
+
+        {/* Version History Drawer Toggle */}
+        <button
+          onClick={toggleHistory}
+          className={cn(
+            'flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-all whitespace-nowrap shrink-0',
+            isHistoryOpen
+              ? 'bg-sky-500 text-white shadow-sm shadow-sky-500/25 ring-2 ring-sky-400'
+              : 'border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+          )}
+          title="Version History & Rollback Snapshots"
+        >
+          <History className="h-3.5 w-3.5" />
+          <span className="hidden md:inline">History</span>
+        </button>
 
         {/* Primary Figma/Eraser Style Share Button */}
         <button
