@@ -103,6 +103,22 @@ export class RoomManagerService {
     const color = userInfo?.color || DEFAULT_PEER_COLORS[session.peers.size % DEFAULT_PEER_COLORS.length];
     const userName = userInfo?.userName || `Architect ${session.peers.size + 1}`;
 
+    // Evict any stale socket for the same userId in this room (handles React StrictMode & fast reconnects)
+    for (const [existingSocket, existingPeer] of session.peers.entries()) {
+      if (existingPeer.userId === userId && existingSocket !== socket) {
+        this.logger.log(
+          `[RoomManager] Evicting stale socket for user "${userId}" in room "${roomId}"`
+        );
+        this.socketToRoom.delete(existingSocket);
+        session.peers.delete(existingSocket);
+        try {
+          existingSocket.close();
+        } catch {
+          // Socket already terminated
+        }
+      }
+    }
+
     const peer: ConnectedPeer = {
       socket,
       socketId,
