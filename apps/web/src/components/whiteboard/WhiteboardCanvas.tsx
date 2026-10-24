@@ -349,13 +349,14 @@ export function WhiteboardCanvas({
       const yElementsMap = yElementsMapRef.current;
       if (!yDoc || !yElementsMap) return;
 
-      // Efficiently propagate modified elements into the Y.Map
       yDoc.transact(() => {
         for (const el of elements) {
           const existing = yElementsMap.get(el.id);
-          // Only update if element has higher version or was freshly created
-          if (!existing || existing.version < el.version) {
-            yElementsMap.set(el.id, el);
+          // Compare against the previously stored snapshot
+          if (!existing || existing.version < el.version || existing.versionNonce !== el.versionNonce) {
+            // Deep clone to break object reference and ensure Yjs captures every stroke/drag change
+            const cleanEl = JSON.parse(JSON.stringify(el));
+            yElementsMap.set(el.id, cleanEl);
           }
         }
       }, 'local-canvas-edit');
@@ -399,6 +400,19 @@ export function WhiteboardCanvas({
           excalidrawAPI={(api) => {
             setExcalidrawApi(api);
             excalidrawApiRef.current = api;
+
+            // Immediately render any room elements that arrived before Excalidraw mounted
+            const yMap = yElementsMapRef.current;
+            if (yMap && yMap.size > 0) {
+              const existingElements = Array.from(yMap.values());
+              isRemoteUpdatingRef.current = true;
+              api.updateScene({
+                elements: existingElements,
+              });
+              requestAnimationFrame(() => {
+                isRemoteUpdatingRef.current = false;
+              });
+            }
           }}
           theme={theme}
           onChange={handleExcalidrawChange}
