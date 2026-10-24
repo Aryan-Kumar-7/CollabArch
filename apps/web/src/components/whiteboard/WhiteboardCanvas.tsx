@@ -16,6 +16,7 @@ import type {
 import type { ExcalidrawElement } from '@excalidraw/excalidraw/element/types';
 import { useAuth } from '@clerk/nextjs';
 import { useCanvasStore, type CollaboratorPresence } from '@/store/canvas-store';
+import { WhiteboardCommentsOverlay, type WhiteboardViewState } from '@/components/comments/WhiteboardCommentsOverlay';
 
 // Dynamically import Excalidraw with SSR disabled to prevent 'window is not defined'
 const Excalidraw = dynamic(
@@ -89,6 +90,11 @@ export function WhiteboardCanvas({
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [peerCount, setPeerCount] = useState<number>(1);
   const [accessDeniedReason, setAccessDeniedReason] = useState<string | null>(null);
+  const [viewState, setViewState] = useState<WhiteboardViewState>({
+    scrollX: 0,
+    scrollY: 0,
+    zoom: 1,
+  });
 
   // Collaborator cursor and profile maps for multi-user awareness
   const collaboratorsMapRef = useRef<Map<SocketId, Collaborator>>(new Map());
@@ -453,6 +459,24 @@ export function WhiteboardCanvas({
   // Handle local drawing changes from Excalidraw UI
   const handleExcalidrawChange = useCallback(
     (elements: readonly ExcalidrawElement[], appState: AppState, files: BinaryFiles) => {
+      if (appState) {
+        const currentZoom = appState.zoom?.value ?? 1;
+        setViewState((prev) => {
+          if (
+            prev.scrollX === appState.scrollX &&
+            prev.scrollY === appState.scrollY &&
+            prev.zoom === currentZoom
+          ) {
+            return prev;
+          }
+          return {
+            scrollX: appState.scrollX,
+            scrollY: appState.scrollY,
+            zoom: currentZoom,
+          };
+        });
+      }
+
       if (isRemoteUpdatingRef.current || useCanvasStore.getState().userRole === 'viewer') return;
 
       const yDoc = yDocRef.current;
@@ -567,12 +591,21 @@ export function WhiteboardCanvas({
   return (
     <div className="relative flex-1 h-full w-full overflow-hidden bg-slate-50 dark:bg-slate-950">
       {/* Full-bleed Excalidraw Whiteboard Container */}
-      <div className="h-full w-full">
+      <div className="relative h-full w-full">
         <Excalidraw
           viewModeEnabled={userRole === 'viewer'}
           excalidrawAPI={(api) => {
             setExcalidrawApi(api);
             excalidrawApiRef.current = api;
+
+            const initAppState = api.getAppState();
+            if (initAppState) {
+              setViewState({
+                scrollX: initAppState.scrollX,
+                scrollY: initAppState.scrollY,
+                zoom: initAppState.zoom?.value ?? 1,
+              });
+            }
 
             // Immediately render any room elements that arrived before Excalidraw mounted
             const yMap = yElementsMapRef.current;
@@ -634,6 +667,7 @@ export function WhiteboardCanvas({
             <MainMenu.DefaultItems.ChangeCanvasBackground />
           </MainMenu>
         </Excalidraw>
+        <WhiteboardCommentsOverlay viewState={viewState} />
       </div>
     </div>
   );

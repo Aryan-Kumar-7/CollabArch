@@ -14,6 +14,7 @@ import {
 import { ViewportPortal, useViewport } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvas-store';
 import { useUser, useAuth } from '@clerk/nextjs';
+import { cn } from '@/lib/utils';
 
 export interface CommentAuthor {
   id: string;
@@ -38,7 +39,7 @@ export interface CanvasCommentItem {
   replies?: CanvasCommentItem[];
 }
 
-function formatRelativeTime(dateString: string): string {
+export function formatRelativeTime(dateString: string): string {
   try {
     const date = new Date(dateString);
     const now = new Date();
@@ -286,20 +287,53 @@ export function CommentsOverlay() {
 
   return (
     <>
-      {/* Top Banner when Comment Mode is active */}
+      {/* Modern Floating Comment Mode Pill (Positioned at bottom-16 to leave canvas tools and header completely free) */}
       {isCommentMode && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-2.5 rounded-full bg-slate-900/95 dark:bg-white/95 text-white dark:text-slate-900 px-4 py-1.5 shadow-2xl backdrop-blur-md pointer-events-auto animate-in fade-in slide-in-from-top-2 duration-150 z-40 select-none">
-          <MessageSquare className="h-4 w-4 text-sky-400 shrink-0" />
-          <span className="text-xs font-semibold">
-            Comment Mode Active — Click on any service card or canvas coordinate to drop a note
+        <div className="fixed bottom-16 left-1/2 -translate-x-1/2 flex items-center gap-2.5 rounded-full border border-slate-200/90 dark:border-slate-800/90 bg-white/95 dark:bg-slate-900/95 text-slate-800 dark:text-slate-100 px-3.5 py-1.5 shadow-2xl backdrop-blur-xl pointer-events-auto animate-in fade-in slide-in-from-bottom-3 duration-200 z-40 select-none">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-500" />
           </span>
+          <MessageSquare className="h-3.5 w-3.5 text-sky-500 shrink-0" />
+          <span className="text-xs font-semibold whitespace-nowrap">
+            Comment Mode Active
+          </span>
+          <span className="text-[11px] text-slate-500 dark:text-slate-400 hidden sm:inline">
+            — Click card or canvas to pin note
+          </span>
+
+          <div className="h-3.5 w-[1px] bg-slate-200 dark:bg-slate-800 mx-1 shrink-0" />
+
+          {/* Toggle show/hide resolved */}
           <button
+            type="button"
+            onClick={() => setShowResolved(!showResolved)}
+            className={cn(
+              'flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-semibold transition-all',
+              showResolved
+                ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+            )}
+            title="Toggle visibility of resolved comment threads"
+          >
+            <Check className="h-3 w-3" />
+            <span>Resolved</span>
+          </button>
+
+          {/* Escape key shortcut badge */}
+          <span className="hidden md:inline rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 px-1.5 py-0.5 text-[9px] font-mono text-slate-500 dark:text-slate-400">
+            Esc
+          </span>
+
+          {/* Exit button */}
+          <button
+            type="button"
             onClick={() => {
               setIsCommentMode(false);
               setNewCommentTarget(null);
             }}
-            className="ml-2 rounded-full p-1 hover:bg-white/20 dark:hover:bg-slate-900/20 text-slate-300 dark:text-slate-600 transition-colors"
-            title="Exit Comment Mode"
+            className="rounded-full p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ml-0.5"
+            title="Exit Comment Mode (Esc)"
           >
             <X className="h-3.5 w-3.5" />
           </button>
