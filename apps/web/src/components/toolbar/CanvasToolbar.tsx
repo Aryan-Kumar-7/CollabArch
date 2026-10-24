@@ -17,6 +17,8 @@ import {
   Check,
   Sun,
   Moon,
+  Wifi,
+  WifiOff,
 } from 'lucide-react';
 import { useReactFlow } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvas-store';
@@ -29,6 +31,7 @@ export function CanvasToolbar() {
     setActiveMode,
     roomId,
     collaborators,
+    isConnected,
     theme,
     toggleTheme,
     isSidebarOpen,
@@ -86,7 +89,7 @@ export function CanvasToolbar() {
         </div>
 
         {/* Room ID Badge with Copy Link */}
-        <div className="hidden lg:flex items-center gap-2 pl-3 border-l border-slate-200 dark:border-slate-800">
+        <div className="hidden md:flex items-center gap-2 pl-3 border-l border-slate-200 dark:border-slate-800">
           <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800/90 bg-slate-100/80 dark:bg-slate-900/80 px-2.5 py-1 text-xs">
             <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500">
               Room
@@ -142,6 +145,31 @@ export function CanvasToolbar() {
 
       {/* Right: Collaborator Presence & Mode Context Controls & Theme Toggle */}
       <div className="flex items-center gap-2.5">
+        {/* Real-time Collaboration Status Badge */}
+        <div
+          className={cn(
+            'flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors shadow-sm',
+            isConnected
+              ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+              : 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+          )}
+          title={isConnected ? 'Connected to live room synchronization mesh' : 'Working in local offline mode'}
+        >
+          {isConnected ? (
+            <>
+              <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              <Wifi className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span className="hidden sm:inline text-[11px] font-semibold">Live Sync</span>
+            </>
+          ) : (
+            <>
+              <span className="flex h-2 w-2 rounded-full bg-amber-500" />
+              <WifiOff className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+              <span className="hidden sm:inline text-[11px] font-medium">Local Only</span>
+            </>
+          )}
+        </div>
+
         {/* Collaborators Stacked Avatars */}
         <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800/80 bg-slate-100/80 dark:bg-slate-900/60 px-2 py-1">
           <div className="flex -space-x-1.5 overflow-hidden">
@@ -243,9 +271,9 @@ export function CanvasToolbar() {
         ) : (
           /* Whiteboard Mode Indicator */
           <div className="flex items-center gap-2">
-            <div className="hidden sm:flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-100/80 dark:bg-slate-900/60 px-2.5 py-1.5 text-xs text-slate-600 dark:text-slate-400">
+            <div className="hidden sm:flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-100/80 dark:bg-slate-900/60 px-2.5 py-1 text-xs text-slate-600 dark:text-slate-400">
               <span className="flex h-1.5 w-1.5 rounded-full bg-sky-500 dark:bg-sky-400" />
-              <span>Excalidraw Engine Active</span>
+              <span className="text-[11px] font-medium">Canvas Ready</span>
             </div>
           </div>
         )}

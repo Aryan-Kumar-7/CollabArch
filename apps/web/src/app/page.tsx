@@ -1,14 +1,29 @@
 'use client';
 
-import React from 'react';
+import dynamic from 'next/dynamic';
+import { Loader2 } from 'lucide-react';
 import { ReactFlowProvider } from '@xyflow/react';
 import { CanvasToolbar } from '@/components/toolbar/CanvasToolbar';
 import { ComponentPalette } from '@/components/sidebar/ComponentPalette';
 import { NodeInspector } from '@/components/inspector/NodeInspector';
 import { Canvas } from '@/components/canvas/Canvas';
-import { WhiteboardCanvas } from '@/components/whiteboard/WhiteboardCanvas';
 import { useCanvasStore } from '@/store/canvas-store';
 import { cn } from '@/lib/utils';
+
+const WhiteboardCanvas = dynamic(
+  () => import('@/components/whiteboard/WhiteboardCanvas').then((mod) => mod.WhiteboardCanvas),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400">
+        <Loader2 className="h-8 w-8 animate-spin text-sky-500 dark:text-sky-400" />
+        <span className="text-sm font-medium tracking-wide">
+          Loading Freehand Whiteboard Canvas...
+        </span>
+      </div>
+    ),
+  }
+);
 
 export default function Home() {
   const { activeMode, roomId } = useCanvasStore();

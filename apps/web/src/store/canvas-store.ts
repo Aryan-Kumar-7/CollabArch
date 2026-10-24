@@ -43,9 +43,11 @@ interface CanvasState {
   activeMode: CanvasStudioMode;
   roomId: string;
   collaborators: CollaboratorPresence[];
+  isConnected: boolean;
   setActiveMode: (mode: CanvasStudioMode) => void;
   setRoomId: (roomId: string) => void;
   setCollaborators: (collaborators: CollaboratorPresence[]) => void;
+  setIsConnected: (connected: boolean) => void;
 
   // Theme State
   theme: 'light' | 'dark';
@@ -260,6 +262,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   collaborators: [
     { userId: 'user-me', userName: 'You (Architect)', color: '#38bdf8', isCurrentUser: true },
   ],
+  isConnected: false,
   theme: initialTheme,
   nodes: INITIAL_NODES,
   edges: INITIAL_EDGES,
@@ -272,6 +275,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   setActiveMode: (mode) => set({ activeMode: mode }),
   setRoomId: (roomId) => set({ roomId }),
   setCollaborators: (collaborators) => set({ collaborators }),
+  setIsConnected: (isConnected) => set({ isConnected }),
 
   toggleTheme: () => {
     const newTheme = get().theme === 'dark' ? 'light' : 'dark';

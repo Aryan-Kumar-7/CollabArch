@@ -4,7 +4,8 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import '@excalidraw/excalidraw/index.css';
 import * as Y from 'yjs';
-import { Loader2, Users, Wifi, WifiOff } from 'lucide-react';
+import { Loader2, Users } from 'lucide-react';
+import { MainMenu } from '@excalidraw/excalidraw';
 import type {
   ExcalidrawImperativeAPI,
   AppState,
@@ -190,6 +191,7 @@ export function WhiteboardCanvas({
             return;
           }
           setIsConnected(true);
+          useCanvasStore.getState().setIsConnected(true);
 
           // Perform Room Handshake with state vector
           const stateVector = Y.encodeStateVector(doc);
@@ -275,14 +277,17 @@ export function WhiteboardCanvas({
 
         ws.onclose = () => {
           setIsConnected(false);
+          useCanvasStore.getState().setIsConnected(false);
           reconnectTimeout = setTimeout(connectWebSocket, 3000);
         };
 
         ws.onerror = () => {
           setIsConnected(false);
+          useCanvasStore.getState().setIsConnected(false);
         };
       } catch {
         setIsConnected(false);
+        useCanvasStore.getState().setIsConnected(false);
       }
     };
 
@@ -313,6 +318,7 @@ export function WhiteboardCanvas({
     return () => {
       isDisposed = true;
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      useCanvasStore.getState().setIsConnected(false);
       doc.off('update', handleLocalDocUpdate);
       yElementsMap.unobserve(handleYjsChange);
       if (ws) {
@@ -387,32 +393,6 @@ export function WhiteboardCanvas({
 
   return (
     <div className="relative flex-1 h-full w-full overflow-hidden bg-slate-50 dark:bg-slate-950">
-      {/* Real-time Collaboration Status Badge */}
-      <div className="absolute top-3 right-3 z-30 flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-800/90 bg-white/90 dark:bg-slate-900/90 px-3 py-1.5 shadow-lg backdrop-blur-md">
-        <div className="flex items-center gap-1.5">
-          {isConnected ? (
-            <>
-              <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-              <Wifi className="h-3.5 w-3.5 text-emerald-500 dark:text-emerald-400" />
-              <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Live Sync</span>
-            </>
-          ) : (
-            <>
-              <span className="flex h-2 w-2 rounded-full bg-amber-400" />
-              <WifiOff className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400" />
-              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Local Only</span>
-            </>
-          )}
-        </div>
-        <div className="h-3 w-[1px] bg-slate-200 dark:bg-slate-800" />
-        <div className="flex items-center gap-1 text-xs text-slate-600 dark:text-slate-400">
-          <Users className="h-3.5 w-3.5 text-sky-500 dark:text-sky-400" />
-          <span>
-            {peerCount} {peerCount === 1 ? 'collaborator' : 'collaborators'}
-          </span>
-        </div>
-      </div>
-
       {/* Full-bleed Excalidraw Whiteboard Container */}
       <div className="h-full w-full">
         <Excalidraw
@@ -447,7 +427,25 @@ export function WhiteboardCanvas({
               saveAsImage: true,
             },
           }}
-        />
+        >
+          <MainMenu>
+            <MainMenu.DefaultItems.LoadScene />
+            <MainMenu.DefaultItems.SaveToActiveFile />
+            <MainMenu.DefaultItems.Export />
+            <MainMenu.DefaultItems.SaveAsImage />
+            <MainMenu.DefaultItems.ClearCanvas />
+            <MainMenu.Separator />
+            {/* Replace Excalidraw links with CollabArch repository */}
+            <MainMenu.Item
+              onSelect={() => window.open('https://github.com/Aryan-Kumar-7/CollabArch', '_blank')}
+            >
+              🌐 CollabArch GitHub
+            </MainMenu.Item>
+            <MainMenu.Separator />
+            <MainMenu.DefaultItems.ToggleTheme />
+            <MainMenu.DefaultItems.ChangeCanvasBackground />
+          </MainMenu>
+        </Excalidraw>
       </div>
     </div>
   );
