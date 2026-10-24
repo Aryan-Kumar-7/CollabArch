@@ -38,14 +38,21 @@ export interface CollaboratorPresence {
   isCurrentUser?: boolean;
 }
 
+export interface UserProfile {
+  name: string;
+  color: string;
+}
+
 interface CanvasState {
   // Studio Mode & Room Metadata
   activeMode: CanvasStudioMode;
   roomId: string;
+  userProfile: UserProfile;
   collaborators: CollaboratorPresence[];
   isConnected: boolean;
   setActiveMode: (mode: CanvasStudioMode) => void;
   setRoomId: (roomId: string) => void;
+  setUserProfile: (profile: Partial<UserProfile>) => void;
   setCollaborators: (collaborators: CollaboratorPresence[]) => void;
   setIsConnected: (connected: boolean) => void;
 
@@ -256,11 +263,20 @@ if (typeof document !== 'undefined') {
   applyThemeToDom(initialTheme);
 }
 
+const DEFAULT_ROOM_ID = 'arch-main';
+const DEFAULT_USER_PROFILE: UserProfile = { name: 'Aryan', color: '#38bdf8' };
+
 export const useCanvasStore = create<CanvasState>((set, get) => ({
   activeMode: 'whiteboard',
-  roomId: 'demo-room',
+  roomId: DEFAULT_ROOM_ID,
+  userProfile: DEFAULT_USER_PROFILE,
   collaborators: [
-    { userId: 'user-me', userName: 'You (Architect)', color: '#38bdf8', isCurrentUser: true },
+    {
+      userId: 'user-me',
+      userName: `${DEFAULT_USER_PROFILE.name} (You)`,
+      color: DEFAULT_USER_PROFILE.color,
+      isCurrentUser: true,
+    },
   ],
   isConnected: false,
   theme: initialTheme,
@@ -273,7 +289,34 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   isInspectorOpen: true,
 
   setActiveMode: (mode) => set({ activeMode: mode }),
-  setRoomId: (roomId) => set({ roomId }),
+  setRoomId: (roomId) => {
+    if (typeof window !== 'undefined') {
+      try {
+        const url = new URL(window.location.href);
+        if (url.searchParams.get('room') !== roomId) {
+          url.searchParams.set('room', roomId);
+          window.history.pushState(null, '', url.toString());
+        }
+      } catch {}
+    }
+    set({ roomId });
+  },
+  setUserProfile: (profile) => {
+    const current = get().userProfile;
+    const updated = { ...current, ...profile };
+    if (typeof window !== 'undefined') {
+      try {
+        if (profile.name) localStorage.setItem('collabarch_user_name', profile.name);
+        if (profile.color) localStorage.setItem('collabarch_user_color', profile.color);
+      } catch {}
+    }
+    const updatedCollaborators = get().collaborators.map((c) =>
+      c.isCurrentUser
+        ? { ...c, userName: `${updated.name} (You)`, color: updated.color }
+        : c
+    );
+    set({ userProfile: updated, collaborators: updatedCollaborators });
+  },
   setCollaborators: (collaborators) => set({ collaborators }),
   setIsConnected: (isConnected) => set({ isConnected }),
 

@@ -36,7 +36,7 @@ const Excalidraw = dynamic(
 );
 
 interface WhiteboardCanvasProps {
-  roomId?: string;
+  roomId: string;
   userName?: string;
   userColor?: string;
   wsUrl?: string;
@@ -76,8 +76,8 @@ function getPersistentUserId(): string {
 }
 
 export function WhiteboardCanvas({
-  roomId = 'demo-room',
-  userName = 'Architect',
+  roomId,
+  userName = 'Aryan',
   userColor = '#38bdf8',
   wsUrl,
 }: WhiteboardCanvasProps) {
@@ -86,6 +86,10 @@ export function WhiteboardCanvas({
   const excalidrawApiRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [peerCount, setPeerCount] = useState<number>(1);
+
+  // Collaborator cursor and profile maps for multi-user awareness
+  const collaboratorsMapRef = useRef<Map<SocketId, Collaborator>>(new Map());
+  const peerProfilesRef = useRef<Map<string, { userName: string; color: string }>>(new Map());
 
   // Sync theme changes to Excalidraw runtime state
   useEffect(() => {
@@ -108,7 +112,7 @@ export function WhiteboardCanvas({
   const isRemoteUpdatingRef = useRef<boolean>(false);
   const localUserIdRef = useRef<string>(getPersistentUserId());
 
-  // Synchronize peer count to canvas store
+  // Synchronize peer count & profiles to canvas store
   const syncPeerCountToStore = useCallback(
     (count: number) => {
       const safeCount = Math.max(1, count);
@@ -121,11 +125,22 @@ export function WhiteboardCanvas({
           isCurrentUser: true,
         },
       ];
-      for (let i = 1; i < safeCount; i++) {
+
+      for (const [peerId, profile] of peerProfilesRef.current.entries()) {
         list.push({
-          userId: `peer-${i}`,
-          userName: `Architect ${i + 1}`,
-          color: ['#818cf8', '#34d399', '#fbbf24', '#f472b6'][(i - 1) % 4],
+          userId: peerId,
+          userName: profile.userName,
+          color: profile.color,
+          isCurrentUser: false,
+        });
+      }
+
+      const remainingCount = safeCount - list.length;
+      for (let i = 0; i < remainingCount; i++) {
+        list.push({
+          userId: `peer-${i + 1}`,
+          userName: `Collaborator ${list.length + 1}`,
+          color: ['#818cf8', '#34d399', '#fbbf24', '#f472b6'][i % 4],
           isCurrentUser: false,
         });
       }
@@ -217,8 +232,22 @@ export function WhiteboardCanvas({
             if (eventName === 'room-joined') {
               syncPeerCountToStore(data.peerCount || 1);
             } else if (eventName === 'peer-joined') {
+              if (data.peer?.userId) {
+                peerProfilesRef.current.set(data.peer.userId, {
+                  userName: data.peer.userName || 'Collaborator',
+                  color: data.peer.color || '#818cf8',
+                });
+              }
               syncPeerCountToStore(data.peerCount || 1);
             } else if (eventName === 'peer-left') {
+              if (data.userId) {
+                peerProfilesRef.current.delete(data.userId);
+                collaboratorsMapRef.current.delete(data.userId as SocketId);
+                const api = excalidrawApiRef.current;
+                if (api) {
+                  api.updateScene({ collaborators: new Map(collaboratorsMapRef.current) });
+                }
+              }
               syncPeerCountToStore(data.remainingPeerCount || 1);
             } else if (eventName === 'sync-message') {
               const { type, payload } = data;
@@ -248,12 +277,19 @@ export function WhiteboardCanvas({
                   const awarenessData = typeof payload === 'string' ? JSON.parse(payload) : payload;
                   const api = excalidrawApiRef.current;
                   if (awarenessData && awarenessData.userId !== localUserIdRef.current && api) {
-                    const collaborators = new Map<SocketId, Collaborator>();
-                    collaborators.set(awarenessData.userId as SocketId, {
-                      username: awarenessData.userName || 'Peer Architect',
+                    if (awarenessData.userName || awarenessData.color) {
+                      peerProfilesRef.current.set(awarenessData.userId, {
+                        userName: awarenessData.userName || 'Collaborator',
+                        color: awarenessData.color || '#818cf8',
+                      });
+                    }
+
+                    const prev = collaboratorsMapRef.current.get(awarenessData.userId as SocketId);
+                    collaboratorsMapRef.current.set(awarenessData.userId as SocketId, {
+                      username: awarenessData.userName || prev?.username || 'Collaborator',
                       color: {
-                        background: awarenessData.color || '#818cf8',
-                        stroke: awarenessData.color || '#818cf8',
+                        background: awarenessData.color || prev?.color?.background || '#818cf8',
+                        stroke: awarenessData.color || prev?.color?.stroke || '#818cf8',
                       },
                       pointer: awarenessData.cursor
                         ? {
@@ -261,9 +297,12 @@ export function WhiteboardCanvas({
                             y: awarenessData.cursor.y,
                             tool: 'pointer',
                           }
-                        : undefined,
+                        : prev?.pointer,
                     });
-                    api.updateScene({ collaborators });
+                    api.updateScene({ collaborators: new Map(collaboratorsMapRef.current) });
+
+                    // Re-sync canvas store collaborator list with peer names
+                    syncPeerCountToStore(peerProfilesRef.current.size + 1);
                   }
                 } catch {
                   // Ignore awareness parsing errors
@@ -391,6 +430,27 @@ export function WhiteboardCanvas({
     },
     [roomId, userName, userColor]
   );
+
+  // Broadcast user profile updates to peers
+  useEffect(() => {
+    const ws = socketRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(
+        JSON.stringify({
+          event: 'sync-message',
+          data: {
+            type: 'awareness',
+            roomId,
+            payload: JSON.stringify({
+              userId: localUserIdRef.current,
+              userName,
+              color: userColor,
+            }),
+          },
+        })
+      );
+    }
+  }, [roomId, userName, userColor]);
 
   return (
     <div className="relative flex-1 h-full w-full overflow-hidden bg-slate-50 dark:bg-slate-950">

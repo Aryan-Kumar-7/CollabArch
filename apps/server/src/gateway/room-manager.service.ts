@@ -20,6 +20,7 @@ export interface ConnectedPeer {
 
 export interface RoomSession {
   roomId: string;
+  name?: string;
   doc: Y.Doc;
   peers: Map<WebSocket, ConnectedPeer>;
   createdAt: Date;
@@ -47,32 +48,34 @@ export class RoomManagerService {
   private readonly socketToRoom = new Map<WebSocket, string>();
 
   constructor() {
-    // Pre-initialize demo room with starter architecture
-    this.getOrCreateRoom('demo-room');
+    // Dynamic room sessions are initialized on-demand as clients connect
   }
 
   /**
    * Retrieves an active room or initializes a new in-memory Y.Doc session.
    */
-  getOrCreateRoom(roomId: string): RoomSession {
+  getOrCreateRoom(roomId: string, name?: string): RoomSession {
     let session = this.rooms.get(roomId);
     if (!session) {
       const doc = new Y.Doc();
+      const defaultName = roomId.startsWith('arch-')
+        ? `Studio ${roomId.replace('arch-', '')}`
+        : `Studio ${roomId}`;
+
       session = {
         roomId,
+        name: name || defaultName,
         doc,
         peers: new Map(),
         createdAt: new Date(),
         lastActiveAt: new Date(),
       };
 
-      // If initializing the demo-room, populate starter architectural components
-      if (roomId === 'demo-room') {
-        this.seedDemoRoom(doc);
-      }
+      // Seed starter architectural topology for fresh rooms
+      this.seedStarterArchitecture(doc);
 
       this.rooms.set(roomId, session);
-      this.logger.log(`[RoomManager] Initialized in-memory Y.Doc room: ${roomId}`);
+      this.logger.log(`[RoomManager] Initialized dynamic in-memory Y.Doc room: ${roomId}`);
     }
     session.lastActiveAt = new Date();
     return session;
@@ -289,7 +292,7 @@ export class RoomManagerService {
       const yEdges = session.doc.getMap<CanvasEdge>('edges');
       return {
         id: session.roomId,
-        name: session.roomId === 'demo-room' ? 'Distributed E-Commerce Microservices' : `Canvas Room ${session.roomId}`,
+        name: session.name || `Studio ${session.roomId}`,
         createdAt: session.createdAt.toISOString(),
         updatedAt: session.lastActiveAt.toISOString(),
         nodeCount: yNodes.size,
@@ -299,9 +302,9 @@ export class RoomManagerService {
   }
 
   /**
-   * Seeds demo room with starter architecture topology.
+   * Seeds a room with starter architecture topology.
    */
-  private seedDemoRoom(doc: Y.Doc): void {
+  private seedStarterArchitecture(doc: Y.Doc): void {
     const yNodes = doc.getMap<CanvasNode>('nodes');
     const yEdges = doc.getMap<CanvasEdge>('edges');
 
@@ -434,6 +437,6 @@ export class RoomManagerService {
       }
     }, 'initial-seed');
 
-    this.logger.log(`[RoomManager] Seeded demo-room with initial architecture nodes & edges.`);
+    this.logger.log(`[RoomManager] Seeded room with initial architecture topology.`);
   }
 }

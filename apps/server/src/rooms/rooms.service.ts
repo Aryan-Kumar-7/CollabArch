@@ -26,12 +26,15 @@ export class RoomsService {
     };
   }
 
-  createRoom(name: string): CanvasRoomMeta {
-    const id = `room-${Date.now().toString(36)}`;
-    const session = this.roomManager.getOrCreateRoom(id);
+  createRoom(name?: string, id?: string): CanvasRoomMeta {
+    const roomId = id?.trim() || `arch-${Math.random().toString(36).substring(2, 8)}`;
+    const roomName =
+      name?.trim() ||
+      (roomId.startsWith('arch-') ? `Studio ${roomId.replace('arch-', '')}` : `Studio ${roomId}`);
+    const session = this.roomManager.getOrCreateRoom(roomId, roomName);
     return {
-      id,
-      name,
+      id: roomId,
+      name: session.name || roomName,
       createdAt: session.createdAt.toISOString(),
       updatedAt: session.lastActiveAt.toISOString(),
       nodeCount: 0,

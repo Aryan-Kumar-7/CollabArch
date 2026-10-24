@@ -9,16 +9,17 @@ import {
   Download,
   PenTool,
   Zap,
-  Users,
-  Copy,
-  Check,
   Sun,
   Moon,
   Wifi,
   WifiOff,
+  Share2,
+  Check,
 } from 'lucide-react';
 import { useCanvasStore } from '@/store/canvas-store';
 import { cn } from '@/lib/utils';
+import { RoomMenu } from '@/components/toolbar/RoomMenu';
+import { UserProfileModal } from '@/components/toolbar/UserProfileModal';
 
 export function CanvasToolbar() {
   const {
@@ -39,7 +40,8 @@ export function CanvasToolbar() {
   } = useCanvasStore();
 
   const [mounted, setMounted] = useState(false);
-  const [hasCopiedRoom, setHasCopiedRoom] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [hasCopiedLink, setHasCopiedLink] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -47,9 +49,10 @@ export function CanvasToolbar() {
 
   const handleCopyRoomLink = () => {
     if (typeof window !== 'undefined') {
-      navigator.clipboard.writeText(window.location.href);
-      setHasCopiedRoom(true);
-      setTimeout(() => setHasCopiedRoom(false), 2000);
+      const shareUrl = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
+      navigator.clipboard.writeText(shareUrl);
+      setHasCopiedLink(true);
+      setTimeout(() => setHasCopiedLink(false), 2000);
     }
   };
 
@@ -78,8 +81,8 @@ export function CanvasToolbar() {
               <span className="text-sm font-bold tracking-tight text-slate-900 dark:text-white">
                 CollabArch
               </span>
-              <span className="rounded bg-sky-500/10 border border-sky-500/30 px-1.5 py-0.2 text-[10px] font-medium text-sky-600 dark:text-sky-400">
-                Phase 2
+              <span className="rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                Live
               </span>
             </div>
             <div className="text-[10px] text-slate-500 dark:text-slate-400">
@@ -88,27 +91,28 @@ export function CanvasToolbar() {
           </div>
         </div>
 
-        {/* Room ID Badge with Copy Link */}
+        {/* Dynamic Multi-Tenant Room Menu & Direct Copy Link Button */}
         <div className="hidden md:flex items-center gap-2 pl-3 border-l border-slate-200 dark:border-slate-800">
-          <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800/90 bg-slate-100/80 dark:bg-slate-900/80 px-2.5 py-1 text-xs">
-            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500">
-              Room
-            </span>
-            <span className="font-mono text-[11px] font-semibold text-slate-700 dark:text-slate-200">
-              {roomId}
-            </span>
-            <button
-              onClick={handleCopyRoomLink}
-              className="ml-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-100 transition-colors"
-              title="Copy Room Link"
-            >
-              {hasCopiedRoom ? (
-                <Check className="h-3 w-3 text-emerald-500 dark:text-emerald-400" />
-              ) : (
-                <Copy className="h-3 w-3" />
-              )}
-            </button>
-          </div>
+          <RoomMenu />
+          <button
+            onClick={handleCopyRoomLink}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800/90 bg-slate-100/80 dark:bg-slate-900/80 px-2.5 py-1 text-xs font-medium text-slate-700 dark:text-slate-200 hover:border-slate-300 dark:hover:border-slate-700 transition-colors shadow-sm"
+            title="Copy isolated shareable room link"
+          >
+            {hasCopiedLink ? (
+              <>
+                <Check className="h-3.5 w-3.5 text-emerald-500" />
+                <span className="text-emerald-600 dark:text-emerald-400 font-semibold text-[11px]">
+                  Shareable link copied!
+                </span>
+              </>
+            ) : (
+              <>
+                <Share2 className="h-3.5 w-3.5 text-slate-400" />
+                <span className="text-[11px]">Copy Link</span>
+              </>
+            )}
+          </button>
         </div>
       </div>
 
@@ -170,24 +174,35 @@ export function CanvasToolbar() {
           )}
         </div>
 
-        {/* Collaborators Stacked Avatars */}
-        <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800/80 bg-slate-100/80 dark:bg-slate-900/60 px-2 py-1">
+        {/* Collaborators Stacked Avatars & User Profile Opener */}
+        <button
+          onClick={() => setIsProfileModalOpen(true)}
+          className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800/80 bg-slate-100/80 dark:bg-slate-900/60 px-2 py-1 hover:border-slate-300 dark:hover:border-slate-700 transition-colors text-left"
+          title="Click to customize your display name & cursor color"
+        >
           <div className="flex -space-x-1.5 overflow-hidden">
             {collaborators.map((user) => (
               <div
                 key={user.userId}
-                className="relative inline-flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold text-slate-950 ring-2 ring-white dark:ring-slate-950 transition-transform hover:scale-110"
+                className={cn(
+                  'relative inline-flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold text-slate-950 ring-2 ring-white dark:ring-slate-950 transition-transform hover:scale-110',
+                  user.isCurrentUser && 'ring-sky-400'
+                )}
                 style={{ backgroundColor: user.color }}
-                title={`${user.userName}${user.isCurrentUser ? ' (You)' : ''}`}
+                title={`${user.userName}${user.isCurrentUser ? ' (Click to edit profile)' : ''}`}
+                suppressHydrationWarning
               >
                 {user.userName.charAt(0).toUpperCase()}
               </div>
             ))}
           </div>
-          <span className="hidden sm:inline text-[11px] font-medium text-slate-600 dark:text-slate-400 pl-1">
+          <span
+            className="hidden sm:inline text-[11px] font-medium text-slate-600 dark:text-slate-400 pl-1"
+            suppressHydrationWarning
+          >
             {collaborators.length} online
           </span>
-        </div>
+        </button>
 
         {/* Simulator-Only Controls */}
         {activeMode === 'simulator' ? (
@@ -273,6 +288,12 @@ export function CanvasToolbar() {
           )}
         </button>
       </div>
+
+      {/* User Profile Customization Modal */}
+      <UserProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+      />
     </header>
   );
 }

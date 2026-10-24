@@ -130,9 +130,6 @@ export function ComponentPalette() {
                   Architecture Palette
                 </h2>
               </div>
-              <span className="text-[10px] bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-full font-mono border border-slate-200 dark:border-slate-700/60">
-                Phase 1
-              </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               Drag components onto the infinite canvas or click to place.

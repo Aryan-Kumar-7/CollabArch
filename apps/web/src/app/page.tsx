@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { Loader2 } from 'lucide-react';
 import { ReactFlowProvider } from '@xyflow/react';
@@ -26,7 +27,50 @@ const WhiteboardCanvas = dynamic(
 );
 
 export default function Home() {
-  const { activeMode, roomId } = useCanvasStore();
+  const { activeMode, roomId, setRoomId, userProfile, setUserProfile } = useCanvasStore();
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    // Hydrate saved user profile from localStorage after mount
+    try {
+      const savedName = localStorage.getItem('collabarch_user_name');
+      const savedColor = localStorage.getItem('collabarch_user_color');
+      if ((savedName && savedName.trim()) || (savedColor && savedColor.trim())) {
+        setUserProfile({
+          ...(savedName?.trim() ? { name: savedName.trim() } : {}),
+          ...(savedColor?.trim() ? { color: savedColor.trim() } : {}),
+        });
+      }
+    } catch {}
+
+    const searchParams = new URLSearchParams(window.location.search);
+    const roomParam = searchParams.get('room');
+
+    if (roomParam && roomParam.trim()) {
+      const cleanRoom = roomParam.trim();
+      if (cleanRoom !== roomId) {
+        setRoomId(cleanRoom);
+      }
+    } else {
+      const newRoomId = `arch-${Math.random().toString(36).substring(2, 8)}`;
+      window.history.replaceState(null, '', `?room=${newRoomId}`);
+      setRoomId(newRoomId);
+    }
+
+    const handlePopState = () => {
+      const currentParams = new URLSearchParams(window.location.search);
+      const currentRoom = currentParams.get('room');
+      if (currentRoom && currentRoom.trim()) {
+        setRoomId(currentRoom.trim());
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
 
   return (
     <ReactFlowProvider>
@@ -34,7 +78,12 @@ export default function Home() {
         <CanvasToolbar />
         <div className="relative flex flex-1 overflow-hidden">
           <div className={cn('h-full w-full', activeMode !== 'whiteboard' && 'hidden')}>
-            <WhiteboardCanvas roomId={roomId} />
+            <WhiteboardCanvas
+              key={roomId}
+              roomId={roomId}
+              userName={userProfile.name}
+              userColor={userProfile.color}
+            />
           </div>
           <div className={cn('h-full w-full flex overflow-hidden', activeMode !== 'simulator' && 'hidden')}>
             <ComponentPalette />

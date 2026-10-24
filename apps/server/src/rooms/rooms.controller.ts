@@ -17,7 +17,7 @@ export class RoomsController {
   }
 
   @Post()
-  createRoom(@Body('name') name: string): CanvasRoomMeta {
-    return this.roomsService.createRoom(name || 'Untitled Architecture Canvas');
+  createRoom(@Body() body?: { name?: string; id?: string }): CanvasRoomMeta {
+    return this.roomsService.createRoom(body?.name, body?.id);
   }
 }
