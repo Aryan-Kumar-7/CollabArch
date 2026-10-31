@@ -21,6 +21,9 @@ export function extractTopology(
 
   // 1. Initialize simulation nodes
   for (const node of nodes) {
+    if (node.type === 'boundary') {
+      continue; // Boundaries are grouping visual containers, not traffic processing nodes
+    }
     nodeMap.set(node.id, {
       id: node.id,
       type: node.type || 'service',
@@ -85,8 +88,8 @@ export function extractTopology(
   const sinkNodeIds: string[] = [];
 
   for (const [nodeId, simNode] of Array.from(nodeMap.entries())) {
-    // API Gateways or nodes with no incoming edges act as ingress sources
-    if (simNode.inDegree === 0 || simNode.type === 'api-gateway') {
+    // API Gateways, WebSockets, or nodes with no incoming edges act as ingress sources
+    if (simNode.inDegree === 0 || simNode.type === 'api-gateway' || simNode.type === 'websocket') {
       sourceNodeIds.push(nodeId);
     }
     // Nodes with no outgoing edges act as terminal sinks (e.g. databases)

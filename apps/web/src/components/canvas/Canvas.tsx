@@ -15,9 +15,21 @@ import { Layers3, Sliders } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   ApiGatewayNode,
+  LoadBalancerNode,
+  WebSocketNode,
+  CdnNode,
   ServiceNode,
+  ServerlessNode,
+  AuthNode,
+  ExternalApiNode,
   DatabaseNode,
+  NoSqlNode,
+  CacheNode,
+  StorageNode,
+  VectorDbNode,
+  SearchNode,
   QueueNode,
+  BoundaryNode,
 } from '@/components/nodes/ArchitectureNodes';
 import { CommentsOverlay } from '@/components/comments/CommentsOverlay';
 import {
@@ -25,13 +37,25 @@ import {
   type ReactFlowNode,
   type ReactFlowEdge,
 } from '@/store/canvas-store';
-import { ComponentType } from '@collabarch/shared-types';
+import { ComponentType, NodeData } from '@collabarch/shared-types';
 
 const nodeTypes: NodeTypes = {
   'api-gateway': ApiGatewayNode,
+  'load-balancer': LoadBalancerNode,
+  websocket: WebSocketNode,
+  cdn: CdnNode,
   service: ServiceNode,
+  serverless: ServerlessNode,
+  auth: AuthNode,
+  'external-api': ExternalApiNode,
   database: DatabaseNode,
+  nosql: NoSqlNode,
+  cache: CacheNode,
+  storage: StorageNode,
+  'vector-db': VectorDbNode,
+  search: SearchNode,
   queue: QueueNode,
+  boundary: BoundaryNode,
 };
 
 export function Canvas() {
@@ -84,12 +108,20 @@ export function Canvas() {
       const type = event.dataTransfer.getData('application/reactflow') as ComponentType;
       if (!type) return;
 
+      let customData: Partial<NodeData> | undefined;
+      const customDataStr = event.dataTransfer.getData('application/collabarch-node-data');
+      if (customDataStr) {
+        try {
+          customData = JSON.parse(customDataStr);
+        } catch {}
+      }
+
       const position = screenToFlowPosition({
         x: event.clientX,
         y: event.clientY,
       });
 
-      addNode(type, position);
+      addNode(type, position, customData);
     },
     [screenToFlowPosition, addNode, userRole]
   );
@@ -203,12 +235,36 @@ export function Canvas() {
             switch (n.type) {
               case 'api-gateway':
                 return '#38bdf8';
+              case 'load-balancer':
+                return '#0ea5e9';
+              case 'websocket':
+                return '#06b6d4';
+              case 'cdn':
+                return '#a855f7';
               case 'service':
                 return '#818cf8';
+              case 'serverless':
+                return '#f97316';
+              case 'auth':
+                return '#f59e0b';
+              case 'external-api':
+                return '#64748b';
               case 'database':
-                return '#34d399';
+                return '#10b981';
+              case 'nosql':
+                return '#059669';
+              case 'cache':
+                return '#f43f5e';
+              case 'storage':
+                return '#06b6d4';
+              case 'vector-db':
+                return '#14b8a6';
+              case 'search':
+                return '#e11d48';
               case 'queue':
                 return '#fbbf24';
+              case 'boundary':
+                return '#6366f1';
               default:
                 return '#64748b';
             }

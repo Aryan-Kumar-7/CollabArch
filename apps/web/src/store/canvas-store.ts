@@ -46,6 +46,19 @@ export interface UserProfile {
   color: string;
 }
 
+export interface CustomComponentDefinition {
+  id: string;
+  name: string;
+  type?: ComponentType;
+  baseRps: number;
+  latencyMs: number;
+  queueDepthLimit?: number;
+  failureRate?: number;
+  iconName: string;
+  accentColor: string;
+  description?: string;
+}
+
 interface CanvasState {
   // Studio Mode & Room Metadata
   activeMode: CanvasStudioMode;
@@ -71,6 +84,11 @@ interface CanvasState {
   edges: ReactFlowEdge[];
   selectedNodeId: string | null;
   selectedEdgeId: string | null;
+
+  // Custom Components Palette State
+  customComponents: CustomComponentDefinition[];
+  addCustomComponent: (component: Omit<CustomComponentDefinition, 'id'>) => CustomComponentDefinition;
+  removeCustomComponent: (id: string) => void;
 
   // Viewport State
   viewport: ViewportState;
@@ -274,6 +292,17 @@ function applyThemeToDom(newTheme: 'light' | 'dark') {
   }
 }
 
+function getInitialCustomComponents(): CustomComponentDefinition[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const stored = localStorage.getItem('collabarch_custom_components');
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch {}
+  return [];
+}
+
 const initialTheme = getInitialTheme();
 if (typeof document !== 'undefined') {
   applyThemeToDom(initialTheme);
@@ -300,11 +329,37 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   theme: initialTheme,
   nodes: INITIAL_NODES,
   edges: INITIAL_EDGES,
+  customComponents: getInitialCustomComponents(),
   selectedNodeId: null,
   selectedEdgeId: null,
   viewport: { x: 100, y: 80, zoom: 0.9 },
   isSidebarOpen: false,
   isInspectorOpen: false,
+
+  addCustomComponent: (comp) => {
+    const newComponent: CustomComponentDefinition = {
+      ...comp,
+      id: `custom-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`,
+    };
+    const updated = [...get().customComponents, newComponent];
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('collabarch_custom_components', JSON.stringify(updated));
+      } catch {}
+    }
+    set({ customComponents: updated });
+    return newComponent;
+  },
+
+  removeCustomComponent: (id) => {
+    const updated = get().customComponents.filter((c) => c.id !== id);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('collabarch_custom_components', JSON.stringify(updated));
+      } catch {}
+    }
+    set({ customComponents: updated });
+  },
 
   setActiveMode: (mode) => set({ activeMode: mode }),
   setRoomId: (roomId) => {
@@ -382,11 +437,14 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   addNode: (type, position, customData) => {
     const id = `node-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
-    const config = DEFAULT_COMPONENT_CONFIGS[type];
+    const config = DEFAULT_COMPONENT_CONFIGS[type] || DEFAULT_COMPONENT_CONFIGS.service;
+    const isBoundary = type === 'boundary';
+
     const newNode: ReactFlowNode = {
       id,
       type,
       position,
+      style: isBoundary ? { width: 500, height: 340, zIndex: -1 } : undefined,
       data: {
         ...config.defaultData,
         ...customData,
@@ -394,7 +452,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     };
 
     set((state) => ({
-      nodes: [...state.nodes, newNode],
+      // Place boundary nodes at the start of nodes list so they render behind other nodes
+      nodes: isBoundary ? [newNode, ...state.nodes] : [...state.nodes, newNode],
       selectedNodeId: id,
       isInspectorOpen: true,
     }));
