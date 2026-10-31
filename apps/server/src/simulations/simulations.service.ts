@@ -16,12 +16,28 @@ export class SimulationsService {
    * Persists a simulation benchmark report for a canvas room
    */
   async recordSimulation(roomSlug: string, userId: string, dto: RecordSimulationDto) {
-    const room = await this.prisma.canvasRoom.findUnique({
+    let room = await this.prisma.canvasRoom.findUnique({
       where: { slug: roomSlug },
     });
 
     if (!room) {
-      throw new NotFoundException(`Room "${roomSlug}" not found`);
+      await this.prisma.user.upsert({
+        where: { id: userId },
+        update: {},
+        create: {
+          id: userId,
+          email: `${userId}@collabarch.internal`,
+          name: 'Simulation Architect',
+        },
+      });
+
+      room = await this.prisma.canvasRoom.create({
+        data: {
+          slug: roomSlug,
+          title: roomSlug === 'arch-main' ? 'Main Architecture Canvas' : `Canvas Room ${roomSlug}`,
+          ownerId: userId,
+        },
+      });
     }
 
     // Ensure the runner User record exists
@@ -88,7 +104,7 @@ export class SimulationsService {
     });
 
     if (!room) {
-      throw new NotFoundException(`Room "${roomSlug}" not found`);
+      return [];
     }
 
     return this.prisma.simulationRun.findMany({

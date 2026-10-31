@@ -32,6 +32,9 @@ import {
   BoundaryNode,
 } from '@/components/nodes/ArchitectureNodes';
 import { CommentsOverlay } from '@/components/comments/CommentsOverlay';
+import { SimulationControls } from '@/components/simulation/SimulationControls';
+import { SimulationPacketCanvas } from '@/components/simulation/SimulationPacketCanvas';
+import { SimulationHud } from '@/components/simulation/SimulationHud';
 import {
   useCanvasStore,
   type ReactFlowNode,
@@ -185,6 +188,9 @@ export function Canvas() {
         className={cn('collabarch-flow-canvas', isCommentMode && 'cursor-crosshair')}
       >
         <CommentsOverlay />
+        <SimulationPacketCanvas />
+        <SimulationControls />
+        <SimulationHud />
         {/* Subtle grid background */}
         <Background
           variant={BackgroundVariant.Dots}

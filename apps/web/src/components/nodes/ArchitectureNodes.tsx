@@ -1,6 +1,6 @@
 'use client';
 
-import React, { memo } from 'react';
+import React, { memo, useState, useEffect, useRef } from 'react';
 import { Handle, Position, NodeResizer, type NodeProps } from '@xyflow/react';
 import {
   Globe,
@@ -32,7 +32,7 @@ import {
 } from 'lucide-react';
 import { ComponentType, NodeData } from '@collabarch/shared-types';
 import { cn } from '@/lib/utils';
-import { ReactFlowNode } from '@/store/canvas-store';
+import { ReactFlowNode, useCanvasStore } from '@/store/canvas-store';
 
 export const ICON_MAP: Record<string, React.ElementType> = {
   Globe,
@@ -269,6 +269,33 @@ export const ArchitectureNodeComponent = memo(function ArchitectureNodeComponent
   const Icon = (data.customIcon && ICON_MAP[data.customIcon]) || config.icon;
   const failureRatePercent = ((data.failureRate || 0) * 100).toFixed(1);
 
+  // Simulation Engine State & Chaos Monkey Hooks
+  const isSimulating = useCanvasStore((s) => s.isSimulating);
+  const simMetrics = useCanvasStore((s) => s.simMetrics);
+  const simBottleneckNodeIds = useCanvasStore((s) => s.simBottleneckNodeIds);
+  const injectChaos = useCanvasStore((s) => s.injectChaos);
+
+  const [isChaosOpen, setIsChaosOpen] = useState(false);
+  const chaosMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isChaosOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (chaosMenuRef.current && !chaosMenuRef.current.contains(e.target as Node)) {
+        setIsChaosOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isChaosOpen]);
+
+  const nodeMetric = isSimulating ? simMetrics?.nodeMetrics?.[id] : undefined;
+  const isBottleneck = isSimulating && simBottleneckNodeIds.includes(id);
+
+  const queuePercent = nodeMetric
+    ? Math.min(100, Math.round((nodeMetric.currentQueueDepth / Math.max(1, nodeMetric.maxQueueDepth)) * 100))
+    : 0;
+
   // Dynamic custom accent border/glow when user customized color
   const customBorder = data.customColor ? { borderColor: data.customColor } : undefined;
   const customHeader = data.customColor ? { borderBottomColor: `${data.customColor}40` } : undefined;
@@ -278,10 +305,11 @@ export const ArchitectureNodeComponent = memo(function ArchitectureNodeComponent
       style={customBorder}
       className={cn(
         'group relative min-w-[270px] rounded-xl border bg-white/95 dark:bg-slate-900/90 backdrop-blur-md transition-all duration-200 shadow-sm dark:shadow-md',
-        config.borderColor,
-        selected
-          ? cn(config.selectedBorderColor, config.glowClass, 'ring-1 ring-sky-400/40 dark:ring-white/20')
-          : 'hover:border-slate-400 dark:hover:border-slate-500 hover:shadow-lg'
+        isBottleneck
+          ? 'animate-pulse border-rose-500 shadow-rose-500/50 ring-2 ring-rose-500/60'
+          : selected
+            ? cn(config.selectedBorderColor, config.glowClass, 'ring-1 ring-sky-400/40 dark:ring-white/20')
+            : cn(config.borderColor, 'hover:border-slate-400 dark:hover:border-slate-500 hover:shadow-lg')
       )}
     >
       {/* Target & Source Handles (Top, Bottom, Left, Right) */}
@@ -338,19 +366,128 @@ export const ArchitectureNodeComponent = memo(function ArchitectureNodeComponent
           </div>
         </div>
 
-        <span
-          style={data.customColor ? { borderColor: `${data.customColor}40`, color: data.customColor } : undefined}
-          className={cn(
-            'rounded-full border px-2 py-0.5 text-[9px] font-semibold tracking-wider uppercase',
-            config.badgeBg
-          )}
-        >
-          {data.isCustom ? 'CUSTOM' : config.badgeText}
-        </span>
+        <div className="flex items-center gap-2">
+          {/* Chaos Monkey Injection Button & Menu */}
+          <div className="relative" ref={chaosMenuRef}>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsChaosOpen(!isChaosOpen);
+              }}
+              className="flex h-6 w-6 items-center justify-center rounded-lg border border-slate-200/90 dark:border-slate-700/80 bg-white/90 dark:bg-slate-800/90 text-xs hover:scale-110 active:scale-95 transition-all shadow-sm cursor-pointer select-none"
+              title="Chaos Monkey Failure Injection"
+            >
+              💣
+            </button>
+
+            {isChaosOpen && (
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="absolute right-0 top-full mt-1.5 z-50 w-48 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 p-1.5 shadow-2xl backdrop-blur-xl text-xs"
+              >
+                <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800/80 mb-1">
+                  Chaos Monkey
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    injectChaos(id, 'latency');
+                    setIsChaosOpen(false);
+                  }}
+                  className="w-full text-left px-2 py-1.5 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-amber-500/10 hover:text-amber-600 dark:hover:text-amber-400 flex items-center gap-2 transition-colors cursor-pointer"
+                >
+                  <span>⚡</span>
+                  <span className="font-medium">Spike Latency (+500ms)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    injectChaos(id, 'crash');
+                    setIsChaosOpen(false);
+                  }}
+                  className="w-full text-left px-2 py-1.5 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-rose-500/10 hover:text-rose-600 dark:hover:text-rose-400 flex items-center gap-2 transition-colors cursor-pointer"
+                >
+                  <span>💥</span>
+                  <span className="font-medium">Crash Node (100% Fail)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    injectChaos(id, 'restore');
+                    setIsChaosOpen(false);
+                  }}
+                  className="w-full text-left px-2 py-1.5 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-emerald-500/10 hover:text-emerald-600 dark:hover:text-emerald-400 flex items-center gap-2 transition-colors cursor-pointer"
+                >
+                  <span>🔄</span>
+                  <span className="font-medium">Restore Normal</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          <span
+            style={data.customColor ? { borderColor: `${data.customColor}40`, color: data.customColor } : undefined}
+            className={cn(
+              'rounded-full border px-2 py-0.5 text-[9px] font-semibold tracking-wider uppercase',
+              config.badgeBg
+            )}
+          >
+            {data.isCustom ? 'CUSTOM' : config.badgeText}
+          </span>
+        </div>
       </div>
 
       {/* Body: Spec Metrics */}
       <div className="p-3 space-y-2 text-xs">
+        {isSimulating && (
+          <div className="rounded-xl border border-sky-500/30 dark:border-sky-500/40 bg-sky-500/10 dark:bg-sky-500/15 p-2.5 space-y-2">
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                Live Throughput
+              </span>
+              <span className="font-mono font-bold text-sky-600 dark:text-sky-400">
+                ~{(nodeMetric?.currentRps ?? 0).toLocaleString()} RPS
+              </span>
+            </div>
+
+            {/* Live Queue Depth Bar */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-[10px]">
+                <span className="text-slate-600 dark:text-slate-400 font-medium">
+                  Queue: {nodeMetric?.currentQueueDepth ?? 0} / {nodeMetric?.maxQueueDepth ?? data.queueDepthLimit ?? 500}
+                </span>
+                <span
+                  className={cn(
+                    'font-mono font-bold',
+                    queuePercent >= 80
+                      ? 'text-rose-600 dark:text-rose-400'
+                      : queuePercent >= 50
+                        ? 'text-amber-600 dark:text-amber-400'
+                        : 'text-emerald-600 dark:text-emerald-400'
+                  )}
+                >
+                  {queuePercent}%
+                </span>
+              </div>
+              <div className="h-2 w-full rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
+                <div
+                  className={cn(
+                    'h-full transition-all duration-150 rounded-full',
+                    queuePercent >= 80
+                      ? 'bg-rose-500 shadow-sm shadow-rose-500/50'
+                      : queuePercent >= 50
+                        ? 'bg-amber-500'
+                        : 'bg-emerald-500'
+                  )}
+                  style={{ width: `${queuePercent}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
         {data.description && (
           <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1 italic">
             {data.description}

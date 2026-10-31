@@ -14,6 +14,11 @@ import {
   NodeData,
   DEFAULT_COMPONENT_CONFIGS,
 } from '@collabarch/shared-types';
+import {
+  SimulationPacket,
+  SimulationMetrics,
+} from '@/lib/simulation/types';
+import { SimulationEngine } from '@/lib/simulation/simulation-engine';
 
 export interface ViewportState {
   x: number;
@@ -141,6 +146,26 @@ interface CanvasState {
   // Canvas Templates
   loadStarterTemplate: () => void;
   clearCanvas: () => void;
+
+  // Simulation Engine State
+  isSimulating: boolean;
+  isSimPaused: boolean;
+  simSpeed: number;
+  simTrafficRps: number;
+  simBurstMode: boolean;
+  simMetrics: SimulationMetrics | null;
+  simBottleneckNodeIds: string[];
+  activePackets: SimulationPacket[];
+
+  // Simulation Actions
+  startSimulation: () => void;
+  pauseSimulation: () => void;
+  resumeSimulation: () => void;
+  stopSimulation: () => void;
+  setSimTrafficRps: (rps: number) => void;
+  setSimSpeed: (speed: number) => void;
+  triggerBurst: () => void;
+  injectChaos: (nodeId: string, type: 'latency' | 'crash' | 'restore') => void;
 }
 
 const INITIAL_NODES: ReactFlowNode[] = [
@@ -310,6 +335,18 @@ if (typeof document !== 'undefined') {
 
 const DEFAULT_ROOM_ID = 'arch-main';
 const DEFAULT_USER_PROFILE: UserProfile = { name: 'Aryan', color: '#38bdf8' };
+
+let simulationEngineInstance: SimulationEngine | null = null;
+let telemetryUnsubscribe: (() => void) | null = null;
+let burstTimeout: ReturnType<typeof setTimeout> | null = null;
+
+export function getSimulationEngine(): SimulationEngine {
+  if (!simulationEngineInstance) {
+    const { nodes, edges } = useCanvasStore.getState();
+    simulationEngineInstance = new SimulationEngine(nodes, edges);
+  }
+  return simulationEngineInstance;
+}
 
 export const useCanvasStore = create<CanvasState>((set, get) => ({
   activeMode: 'whiteboard',
@@ -582,4 +619,168 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       selectedNodeId: null,
       selectedEdgeId: null,
     }),
+
+  // Simulation Engine State
+  isSimulating: false,
+  isSimPaused: false,
+  simSpeed: 1,
+  simTrafficRps: 2500,
+  simBurstMode: false,
+  simMetrics: null,
+  simBottleneckNodeIds: [],
+  activePackets: [],
+
+  startSimulation: () => {
+    const engine = getSimulationEngine();
+    const state = get();
+    engine.updateTopology(state.nodes, state.edges);
+    engine.setConfig({
+      customArrivalRateRps: state.simTrafficRps,
+      simulationSpeed: state.simSpeed,
+      failureInjectionEnabled: true,
+      burstModeEnabled: state.simBurstMode,
+    });
+
+    if (telemetryUnsubscribe) {
+      telemetryUnsubscribe();
+    }
+
+    telemetryUnsubscribe = engine.subscribeTelemetry((metrics) => {
+      set({
+        simMetrics: metrics,
+        simBottleneckNodeIds: metrics.bottleneckNodeIds,
+        activePackets: [...engine.getActivePackets()],
+      });
+    });
+
+    engine.start();
+    const initialMetrics = engine.getMetrics();
+    set({
+      isSimulating: true,
+      isSimPaused: false,
+      simMetrics: initialMetrics,
+      simBottleneckNodeIds: initialMetrics.bottleneckNodeIds,
+      activePackets: [...engine.getActivePackets()],
+    });
+  },
+
+  pauseSimulation: () => {
+    const engine = getSimulationEngine();
+    engine.pause();
+    set({ isSimPaused: true });
+  },
+
+  resumeSimulation: () => {
+    const engine = getSimulationEngine();
+    engine.resume();
+    set({ isSimPaused: false });
+  },
+
+  stopSimulation: () => {
+    const engine = getSimulationEngine();
+    if (telemetryUnsubscribe) {
+      telemetryUnsubscribe();
+      telemetryUnsubscribe = null;
+    }
+    if (burstTimeout) {
+      clearTimeout(burstTimeout);
+      burstTimeout = null;
+    }
+    engine.reset();
+
+    // Restore any chaos-mutated nodes in canvas state
+    const restoredNodes = get().nodes.map((node) => {
+      const d = node.data as any;
+      if (d._origLatencyMs !== undefined || d._origFailureRate !== undefined || d._origCapacityRps !== undefined) {
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            latencyMs: d._origLatencyMs !== undefined ? d._origLatencyMs : node.data.latencyMs,
+            failureRate: d._origFailureRate !== undefined ? d._origFailureRate : node.data.failureRate,
+            capacityRps: d._origCapacityRps !== undefined ? d._origCapacityRps : node.data.capacityRps,
+            _origLatencyMs: undefined,
+            _origFailureRate: undefined,
+            _origCapacityRps: undefined,
+          },
+        };
+      }
+      return node;
+    });
+
+    set({
+      nodes: restoredNodes,
+      isSimulating: false,
+      isSimPaused: false,
+      simBurstMode: false,
+      simMetrics: null,
+      simBottleneckNodeIds: [],
+      activePackets: [],
+    });
+  },
+
+  setSimTrafficRps: (rps: number) => {
+    const engine = getSimulationEngine();
+    engine.setConfig({ customArrivalRateRps: rps });
+    set({ simTrafficRps: rps });
+  },
+
+  setSimSpeed: (speed: number) => {
+    const engine = getSimulationEngine();
+    engine.setConfig({ simulationSpeed: speed });
+    set({ simSpeed: speed });
+  },
+
+  triggerBurst: () => {
+    const engine = getSimulationEngine();
+    if (burstTimeout) {
+      clearTimeout(burstTimeout);
+    }
+    engine.setConfig({ burstModeEnabled: true });
+    set({ simBurstMode: true });
+    burstTimeout = setTimeout(() => {
+      engine.setConfig({ burstModeEnabled: false });
+      set({ simBurstMode: false });
+      burstTimeout = null;
+    }, 3000);
+  },
+
+  injectChaos: (nodeId: string, type: 'latency' | 'crash' | 'restore') => {
+    const engine = getSimulationEngine();
+    engine.injectChaos(nodeId, type);
+
+    const node = get().nodes.find((n) => n.id === nodeId);
+    if (node) {
+      const d = node.data as any;
+      const origLatency = d._origLatencyMs ?? node.data.latencyMs ?? 25;
+      const origFailure = d._origFailureRate ?? node.data.failureRate ?? 0;
+      const origCapacity = d._origCapacityRps ?? node.data.capacityRps ?? 1000;
+
+      if (type === 'latency') {
+        get().updateNodeData(nodeId, {
+          latencyMs: origLatency + 500,
+          capacityRps: Math.max(20, Math.round(origCapacity * (origLatency / (origLatency + 500)))),
+          _origLatencyMs: origLatency,
+          _origFailureRate: origFailure,
+          _origCapacityRps: origCapacity,
+        } as any);
+      } else if (type === 'crash') {
+        get().updateNodeData(nodeId, {
+          failureRate: 1.0,
+          _origLatencyMs: origLatency,
+          _origFailureRate: origFailure,
+          _origCapacityRps: origCapacity,
+        } as any);
+      } else if (type === 'restore') {
+        get().updateNodeData(nodeId, {
+          latencyMs: origLatency,
+          failureRate: origFailure,
+          capacityRps: origCapacity,
+          _origLatencyMs: undefined,
+          _origFailureRate: undefined,
+          _origCapacityRps: undefined,
+        } as any);
+      }
+    }
+  },
 }));

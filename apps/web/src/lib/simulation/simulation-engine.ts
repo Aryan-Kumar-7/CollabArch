@@ -62,6 +62,9 @@ export class SimulationEngine {
   private telemetryCallbacks: Set<TelemetryCallback> = new Set();
   private eventListeners: Set<SimulationEventListener> = new Set();
 
+  // Chaos Monkey original specs tracking
+  private originalNodeSpecs = new Map<string, { latencyMs: number; failureRate: number; capacityRps: number }>();
+
   constructor(nodes: ReactFlowNode[] = [], edges: ReactFlowEdge[] = []) {
     this.topology = extractTopology(nodes, edges);
   }
@@ -137,6 +140,17 @@ export class SimulationEngine {
       edge.droppedCounter = 0;
     }
 
+    // Reset chaos monkey injection
+    for (const [nodeId, original] of Array.from(this.originalNodeSpecs.entries())) {
+      const node = this.topology.nodes.get(nodeId);
+      if (node) {
+        node.latencyMs = original.latencyMs;
+        node.failureRate = original.failureRate;
+        node.capacityRps = original.capacityRps;
+      }
+    }
+    this.originalNodeSpecs.clear();
+
     this.emitTelemetry();
   }
 
@@ -164,6 +178,11 @@ export class SimulationEngine {
         newNode.queue = prev.queue;
         newNode.accumulatedProcessed = prev.accumulatedProcessed;
         newNode.accumulatedDropped = prev.accumulatedDropped;
+        if (this.originalNodeSpecs.has(nodeId)) {
+          newNode.latencyMs = prev.latencyMs;
+          newNode.failureRate = prev.failureRate;
+          newNode.capacityRps = prev.capacityRps;
+        }
       }
     }
 
@@ -171,6 +190,35 @@ export class SimulationEngine {
     this.transitingPackets = this.transitingPackets.filter((p) =>
       this.topology.edges.has(p.edgeId)
     );
+  }
+
+  public injectChaos(nodeId: string, type: 'latency' | 'crash' | 'restore'): void {
+    const node = this.topology.nodes.get(nodeId);
+    if (!node) return;
+
+    if (!this.originalNodeSpecs.has(nodeId)) {
+      this.originalNodeSpecs.set(nodeId, {
+        latencyMs: node.latencyMs,
+        failureRate: node.failureRate,
+        capacityRps: node.capacityRps,
+      });
+    }
+
+    const original = this.originalNodeSpecs.get(nodeId)!;
+
+    if (type === 'latency') {
+      node.latencyMs = original.latencyMs + 500;
+      node.capacityRps = Math.max(20, Math.round(original.capacityRps * (original.latencyMs / (original.latencyMs + 500))));
+    } else if (type === 'crash') {
+      node.failureRate = 1.0;
+    } else if (type === 'restore') {
+      node.latencyMs = original.latencyMs;
+      node.failureRate = original.failureRate;
+      node.capacityRps = original.capacityRps;
+      this.originalNodeSpecs.delete(nodeId);
+    }
+
+    this.emitTelemetry();
   }
 
   /**
