@@ -256,7 +256,7 @@ export class RoomManagerService implements OnModuleDestroy {
   /**
    * Trailing debounce (10 seconds) for persisting binary snapshots to PostgreSQL.
    */
-  private scheduleRoomSnapshot(roomId: string): void {
+  public scheduleRoomSnapshot(roomId: string): void {
     if (this.snapshotTimers.has(roomId)) {
       clearTimeout(this.snapshotTimers.get(roomId)!);
     }

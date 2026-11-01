@@ -11,6 +11,7 @@ import { ActivityModule } from './activity/activity.module';
 import { RevisionsModule } from './revisions/revisions.module';
 import { CommentsModule } from './comments/comments.module';
 import { SimulationsModule } from './simulations/simulations.module';
+import { AiModule } from './ai/ai.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { SimulationsModule } from './simulations/simulations.module';
     RevisionsModule,
     CommentsModule,
     SimulationsModule,
+    AiModule,
     GatewayModule,
     RoomsModule,
   ],

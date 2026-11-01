@@ -11,7 +11,7 @@ import {
   useReactFlow,
   type NodeTypes,
 } from '@xyflow/react';
-import { Layers3, Sliders } from 'lucide-react';
+import { Layers3, Sliders, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   ApiGatewayNode,
@@ -32,6 +32,7 @@ import {
   BoundaryNode,
 } from '@/components/nodes/ArchitectureNodes';
 import { CommentsOverlay } from '@/components/comments/CommentsOverlay';
+import { AiArchitectureBanner } from '@/components/ai/AiArchitectureBanner';
 import { SimulationControls } from '@/components/simulation/SimulationControls';
 import { SimulationPacketCanvas } from '@/components/simulation/SimulationPacketCanvas';
 import { SimulationHud } from '@/components/simulation/SimulationHud';
@@ -86,6 +87,7 @@ export function Canvas() {
     isCommentMode,
     newCommentTarget,
     setNewCommentTarget,
+    setIsAiModalOpen,
   } = useCanvasStore();
 
   // Auto-center canvas whenever switching into simulator mode or when nodes change
@@ -188,6 +190,7 @@ export function Canvas() {
         className={cn('collabarch-flow-canvas', isCommentMode && 'cursor-crosshair')}
       >
         <CommentsOverlay />
+        <AiArchitectureBanner />
         <SimulationPacketCanvas />
         <SimulationControls />
         <SimulationHud />
@@ -198,9 +201,9 @@ export function Canvas() {
           size={1.5}
           color={theme === 'dark' ? '#1e293b' : '#cbd5e1'}
         />
-        {/* Floating Canvas Controls: Palette Toggle (Visible when Palette is collapsed) */}
+        {/* Floating Canvas Controls: Palette Toggle & AI Architect (Visible when Palette is collapsed) */}
         {!isSidebarOpen && (
-          <Panel position="top-left" className="!m-3.5">
+          <Panel position="top-left" className="!m-3.5 flex items-center gap-2">
             <button
               onClick={toggleSidebar}
               className="flex items-center gap-2 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-white/95 dark:bg-slate-900/95 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-white dark:hover:bg-slate-800 backdrop-blur-xl shadow-lg hover:shadow-xl transition-all duration-200 select-none cursor-pointer"
@@ -208,6 +211,14 @@ export function Canvas() {
             >
               <Layers3 className="h-3.5 w-3.5 text-sky-500 dark:text-sky-400" />
               <span>Palette</span>
+            </button>
+            <button
+              onClick={() => setIsAiModalOpen(true)}
+              className="flex items-center gap-2 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-white/95 dark:bg-slate-900/95 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-white dark:hover:bg-slate-800 backdrop-blur-xl shadow-lg hover:shadow-xl transition-all duration-200 select-none cursor-pointer"
+              title="AI Architect Generator (Cmd+K / Ctrl+K)"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-indigo-500 dark:text-indigo-400" />
+              <span>AI Architect</span>
             </button>
           </Panel>
         )}

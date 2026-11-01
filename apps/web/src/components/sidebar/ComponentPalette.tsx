@@ -366,6 +366,7 @@ export function ComponentPalette() {
     clearCanvas,
     customComponents,
     removeCustomComponent,
+    setIsAiModalOpen,
   } = useCanvasStore();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -497,12 +498,41 @@ export function ComponentPalette() {
                 </div>
               </div>
 
+              {/* ✨ AI Architect Primary Card / Trigger Button */}
+              <button
+                onClick={() => setIsAiModalOpen(true)}
+                className="w-full flex items-center justify-between p-3 rounded-xl border border-indigo-500/30 bg-gradient-to-r from-sky-500/10 via-indigo-500/15 to-purple-500/10 hover:from-sky-500/20 hover:via-indigo-500/25 hover:to-purple-500/20 hover:border-indigo-500/50 shadow-sm hover:shadow-md transition-all duration-200 group text-left cursor-pointer active:scale-[0.99]"
+                title="Generate complete architecture with Google Gemini (Cmd+K / Ctrl+K)"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-tr from-sky-500 to-indigo-600 text-white shadow-sm shadow-indigo-500/30 group-hover:scale-105 transition-transform">
+                    <Sparkles className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-slate-900 dark:text-white">
+                        AI Architect
+                      </span>
+                      <span className="rounded bg-indigo-500/20 border border-indigo-500/30 px-1 py-0.2 text-[9px] font-semibold text-indigo-600 dark:text-indigo-300">
+                        Gemini
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                      Prompt-to-Diagram Generator
+                    </p>
+                  </div>
+                </div>
+                <kbd className="hidden sm:inline-flex items-center rounded border border-indigo-300 dark:border-indigo-700/60 bg-white/70 dark:bg-slate-900/70 px-1.5 py-0.5 text-[10px] font-mono text-indigo-600 dark:text-indigo-300 shrink-0 shadow-xs">
+                  ⌘K
+                </kbd>
+              </button>
+
               {/* ➕ Custom Component Primary Button */}
               <button
                 onClick={() => setIsCustomModalOpen(true)}
-                className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 px-3.5 py-2 text-xs font-semibold text-white shadow-md hover:shadow-lg transition-all duration-200 active:scale-[0.98]"
+                className="w-full flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100/70 hover:bg-slate-200/70 dark:bg-slate-900/60 dark:hover:bg-slate-800/80 px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 shadow-xs transition-all duration-150 active:scale-[0.98]"
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-4 w-4 text-sky-500" />
                 <span>Custom Component</span>
               </button>
 

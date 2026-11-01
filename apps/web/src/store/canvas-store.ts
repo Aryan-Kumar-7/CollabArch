@@ -51,6 +51,13 @@ export interface UserProfile {
   color: string;
 }
 
+export interface AiSummaryToast {
+  title: string;
+  summary: string;
+  nodeCount: number;
+  edgeCount: number;
+}
+
 export interface CustomComponentDefinition {
   id: string;
   name: string;
@@ -97,6 +104,13 @@ interface CanvasState {
 
   // Viewport State
   viewport: ViewportState;
+
+  // AI Architect State
+  isAiModalOpen: boolean;
+  setIsAiModalOpen: (open: boolean) => void;
+  toggleAiModal: () => void;
+  aiSummaryToast: AiSummaryToast | null;
+  setAiSummaryToast: (toast: AiSummaryToast | null) => void;
 
   // UI Panels
   isSidebarOpen: boolean;
@@ -370,6 +384,11 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   selectedNodeId: null,
   selectedEdgeId: null,
   viewport: { x: 100, y: 80, zoom: 0.9 },
+  isAiModalOpen: false,
+  setIsAiModalOpen: (isAiModalOpen) => set({ isAiModalOpen }),
+  toggleAiModal: () => set((state) => ({ isAiModalOpen: !state.isAiModalOpen })),
+  aiSummaryToast: null,
+  setAiSummaryToast: (aiSummaryToast) => set({ aiSummaryToast }),
   isSidebarOpen: false,
   isInspectorOpen: false,
 

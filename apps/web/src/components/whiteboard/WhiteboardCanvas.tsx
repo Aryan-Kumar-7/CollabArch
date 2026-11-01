@@ -17,6 +17,7 @@ import type { ExcalidrawElement } from '@excalidraw/excalidraw/element/types';
 import { useAuth } from '@clerk/nextjs';
 import { useCanvasStore, type CollaboratorPresence } from '@/store/canvas-store';
 import { WhiteboardCommentsOverlay, type WhiteboardViewState } from '@/components/comments/WhiteboardCommentsOverlay';
+import type { CanvasNode, CanvasEdge } from '@collabarch/shared-types';
 
 // Dynamically import Excalidraw with SSR disabled to prevent 'window is not defined'
 const Excalidraw = dynamic(
@@ -210,6 +211,27 @@ export function WhiteboardCanvas({
 
     yElementsMap.observe(handleYjsChange);
 
+    // Observe architecture nodes and edges stored in CRDT room
+    const yNodesMap = doc.getMap<CanvasNode>('nodes');
+    const yEdgesMap = doc.getMap<CanvasEdge>('edges');
+
+    const handleYjsArchitectureNodesChange = (event: Y.YMapEvent<CanvasNode>) => {
+      if (event.transaction.origin === 'local-flow-edit') return;
+      const currentNodes = Array.from(yNodesMap.values());
+      if (currentNodes.length > 0) {
+        useCanvasStore.getState().setNodes(currentNodes as any);
+      }
+    };
+
+    const handleYjsArchitectureEdgesChange = (event: Y.YMapEvent<CanvasEdge>) => {
+      if (event.transaction.origin === 'local-flow-edit') return;
+      const currentEdges = Array.from(yEdgesMap.values());
+      useCanvasStore.getState().setEdges(currentEdges as any);
+    };
+
+    yNodesMap.observe(handleYjsArchitectureNodesChange);
+    yEdgesMap.observe(handleYjsArchitectureEdgesChange);
+
     let ws: WebSocket | null = null;
     let reconnectTimeout: NodeJS.Timeout | null = null;
     let isDisposed = false;
@@ -313,6 +335,17 @@ export function WhiteboardCanvas({
                 }
               }
               syncPeerCountToStore(data.remainingPeerCount || 1);
+            } else if (eventName === 'architecture-generated') {
+              if (data?.nodes && Array.isArray(data.nodes) && data.nodes.length > 0) {
+                useCanvasStore.getState().setNodes(data.nodes);
+                useCanvasStore.getState().setEdges(data.edges || []);
+                useCanvasStore.getState().setAiSummaryToast({
+                  title: data.title || 'Generated Distributed Architecture',
+                  summary: data.summary || 'Architecture synthesized with Google Gemini API.',
+                  nodeCount: data.nodes.length,
+                  edgeCount: (data.edges || []).length,
+                });
+              }
             } else if (eventName === 'sync-message') {
               const { type, payload } = data;
               if (type === 'sync-step-1') {

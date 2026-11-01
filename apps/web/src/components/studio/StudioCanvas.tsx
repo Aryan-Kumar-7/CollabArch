@@ -10,6 +10,7 @@ import { NodeInspector } from '@/components/inspector/NodeInspector';
 import { Canvas } from '@/components/canvas/Canvas';
 import { CanvasStatusHud } from '@/components/canvas/CanvasStatusHud';
 import { VersionHistoryDrawer } from '@/components/history/VersionHistoryDrawer';
+import { GenerateArchitectureModal } from '@/components/ai/GenerateArchitectureModal';
 import { useCanvasStore } from '@/store/canvas-store';
 import { cn } from '@/lib/utils';
 
@@ -33,7 +34,28 @@ interface StudioCanvasProps {
 }
 
 export function StudioCanvas({ initialRoomId }: StudioCanvasProps) {
-  const { activeMode, roomId, setRoomId, userProfile, setUserProfile } = useCanvasStore();
+  const {
+    activeMode,
+    roomId,
+    setRoomId,
+    userProfile,
+    setUserProfile,
+    isAiModalOpen,
+    setIsAiModalOpen,
+    toggleAiModal,
+  } = useCanvasStore();
+
+  // Global Cmd+K / Ctrl+K keyboard shortcut listener to toggle AI Architect modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        toggleAiModal();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [toggleAiModal]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -89,6 +111,10 @@ export function StudioCanvas({ initialRoomId }: StudioCanvasProps) {
         </div>
         <VersionHistoryDrawer />
         <CanvasStatusHud />
+        <GenerateArchitectureModal
+          isOpen={isAiModalOpen}
+          onClose={() => setIsAiModalOpen(false)}
+        />
       </main>
     </ReactFlowProvider>
   );
