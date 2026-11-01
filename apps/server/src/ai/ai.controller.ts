@@ -1,5 +1,6 @@
-import { Controller, Post, Body, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Body, BadRequestException, UseGuards } from '@nestjs/common';
 import { AiService, ArchitectureResponse } from './ai.service';
+import { ClerkAuthGuard } from '../auth/clerk-auth.guard';
 
 export class GenerateArchitectureDto {
   prompt!: string;
@@ -7,6 +8,7 @@ export class GenerateArchitectureDto {
 }
 
 @Controller('ai')
+@UseGuards(ClerkAuthGuard)
 export class AiController {
   constructor(private readonly aiService: AiService) {}
 
