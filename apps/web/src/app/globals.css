@@ -93,3 +93,12 @@ body {
 .dark ::-webkit-scrollbar-thumb:hover {
   background: rgba(71, 85, 105, 1);
 }
+
+/* Hide Excalidraw third-party Library button and side drawer trigger */
+.excalidraw .default-sidebar-trigger,
+.excalidraw .sidebar-trigger,
+.excalidraw button[title="Library"],
+.excalidraw button[aria-label="Library"] {
+  display: none !important;
+}
+

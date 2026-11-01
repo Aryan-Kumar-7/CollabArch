@@ -656,13 +656,6 @@ export function WhiteboardCanvas({
             <MainMenu.DefaultItems.SaveAsImage />
             <MainMenu.DefaultItems.ClearCanvas />
             <MainMenu.Separator />
-            {/* Replace Excalidraw links with CollabArch repository */}
-            <MainMenu.Item
-              onSelect={() => window.open('https://github.com/Aryan-Kumar-7/CollabArch', '_blank')}
-            >
-              🌐 CollabArch GitHub
-            </MainMenu.Item>
-            <MainMenu.Separator />
             <MainMenu.DefaultItems.ToggleTheme />
             <MainMenu.DefaultItems.ChangeCanvasBackground />
           </MainMenu>
