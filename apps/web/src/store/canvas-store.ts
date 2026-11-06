@@ -13,6 +13,7 @@ import {
   ComponentType,
   NodeData,
   DEFAULT_COMPONENT_CONFIGS,
+  AutoTuneAdjustment,
 } from '@collabarch/shared-types';
 import {
   SimulationPacket,
@@ -180,6 +181,7 @@ interface CanvasState {
   setSimSpeed: (speed: number) => void;
   triggerBurst: () => void;
   injectChaos: (nodeId: string, type: 'latency' | 'crash' | 'restore') => void;
+  applyAutoTune: (adjustments: AutoTuneAdjustment[]) => void;
 }
 
 const INITIAL_NODES: ReactFlowNode[] = [
@@ -801,5 +803,38 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         } as any);
       }
     }
+  },
+
+  applyAutoTune: (adjustments: AutoTuneAdjustment[]) => {
+    const adjMap = new Map<string, AutoTuneAdjustment['changes']>();
+    for (const adj of adjustments) {
+      adjMap.set(adj.nodeId, adj.changes);
+    }
+
+    const updatedNodes = get().nodes.map((node) => {
+      const changes = adjMap.get(node.id);
+      if (changes) {
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            ...changes,
+            _origLatencyMs: undefined,
+            _origFailureRate: undefined,
+            _origCapacityRps: undefined,
+          },
+        };
+      }
+      return node;
+    });
+
+    set({ nodes: updatedNodes });
+
+    const engine = getSimulationEngine();
+    for (const adj of adjustments) {
+      engine.clearChaosOverrides(adj.nodeId);
+    }
+    engine.updateTopology(updatedNodes, get().edges);
+    engine.relieveQueues();
   },
 }));

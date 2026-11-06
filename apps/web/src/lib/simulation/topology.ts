@@ -24,14 +24,20 @@ export function extractTopology(
     if (node.type === 'boundary') {
       continue; // Boundaries are grouping visual containers, not traffic processing nodes
     }
+    const replicas = typeof node.data.replicas === 'number' && node.data.replicas > 0 ? node.data.replicas : 1;
+    const baseCapacity = node.data.capacityRps || 1000;
+    const effectiveCapacity = baseCapacity * replicas;
+
     nodeMap.set(node.id, {
       id: node.id,
       type: node.type || 'service',
       label: node.data.label || node.id,
-      capacityRps: node.data.capacityRps || 1000,
+      capacityRps: effectiveCapacity,
       latencyMs: node.data.latencyMs || 25,
       queueDepthLimit: node.data.queueDepthLimit || 500,
       failureRate: Math.max(0, Math.min(1, node.data.failureRate || 0)),
+      replicas,
+      cacheHitRatio: typeof node.data.cacheHitRatio === 'number' ? node.data.cacheHitRatio : undefined,
       inDegree: 0,
       outDegree: 0,
       outgoingEdgeIds: [],

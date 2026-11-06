@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import '@excalidraw/excalidraw/index.css';
 import * as Y from 'yjs';
-import { Loader2, Users, Lock } from 'lucide-react';
+import { Loader2, Users, Lock, Sparkles } from 'lucide-react';
 import { MainMenu } from '@excalidraw/excalidraw';
 import type {
   ExcalidrawImperativeAPI,
@@ -84,7 +84,7 @@ export function WhiteboardCanvas({
   userColor = '#38bdf8',
   wsUrl,
 }: WhiteboardCanvasProps) {
-  const { theme, userRole, setUserRole } = useCanvasStore();
+  const { theme, userRole, setUserRole, setIsAiModalOpen } = useCanvasStore();
   const { isLoaded, isSignedIn, userId: clerkUserId, getToken } = useAuth();
   const [excalidrawApi, setExcalidrawApi] = useState<ExcalidrawImperativeAPI | null>(null);
   const excalidrawApiRef = useRef<ExcalidrawImperativeAPI | null>(null);
@@ -175,6 +175,28 @@ export function WhiteboardCanvas({
     [userName, userColor, clerkUserId]
   );
 
+  // Listen for AI generated whiteboard diagram elements
+  useEffect(() => {
+    const handleInsertElements = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const newElements = customEvent.detail;
+      if (excalidrawApiRef.current && Array.isArray(newElements) && newElements.length > 0) {
+        const existing = excalidrawApiRef.current.getSceneElements();
+        excalidrawApiRef.current.updateScene({
+          elements: [...existing, ...newElements],
+        });
+        setTimeout(() => {
+          excalidrawApiRef.current?.scrollToContent(undefined, { fitToViewport: true });
+        }, 100);
+      }
+    };
+
+    window.addEventListener('collabarch:insert-excalidraw-elements', handleInsertElements);
+    return () => {
+      window.removeEventListener('collabarch:insert-excalidraw-elements', handleInsertElements);
+    };
+  }, []);
+
   // Initialize shared Y.Doc & WebSocket synchronization
   useEffect(() => {
     // Hold off connecting until Clerk authentication has completely hydrated
@@ -185,6 +207,7 @@ export function WhiteboardCanvas({
     const doc = new Y.Doc();
     yDocRef.current = doc;
     const yElementsMap = doc.getMap<ExcalidrawElement>('whiteboard_elements');
+    const yExcalElementsMap = doc.getMap<ExcalidrawElement>('excalidraw-elements');
     yElementsMapRef.current = yElementsMap;
 
     // Listen to remote changes inside Y.Doc and reconcile into Excalidraw scene
@@ -196,7 +219,14 @@ export function WhiteboardCanvas({
       const api = excalidrawApiRef.current;
       if (!api) return;
 
-      const currentRemoteElements = Array.from(yElementsMap.values());
+      const remoteMap = new Map<string, ExcalidrawElement>();
+      for (const [k, v] of yExcalElementsMap.entries()) {
+        remoteMap.set(k, v);
+      }
+      for (const [k, v] of yElementsMap.entries()) {
+        remoteMap.set(k, v);
+      }
+      const currentRemoteElements = Array.from(remoteMap.values());
       if (currentRemoteElements.length === 0) return;
 
       isRemoteUpdatingRef.current = true;
@@ -210,6 +240,7 @@ export function WhiteboardCanvas({
     };
 
     yElementsMap.observe(handleYjsChange);
+    yExcalElementsMap.observe(handleYjsChange);
 
     // Observe architecture nodes and edges stored in CRDT room
     const yNodesMap = doc.getMap<CanvasNode>('nodes');
@@ -461,6 +492,7 @@ export function WhiteboardCanvas({
       useCanvasStore.getState().setIsConnected(false);
       doc.off('update', handleLocalDocUpdate);
       yElementsMap.unobserve(handleYjsChange);
+      yExcalElementsMap.unobserve(handleYjsChange);
       if (ws) {
         try {
           if (ws.readyState === WebSocket.OPEN) {
@@ -642,8 +674,16 @@ export function WhiteboardCanvas({
 
             // Immediately render any room elements that arrived before Excalidraw mounted
             const yMap = yElementsMapRef.current;
-            if (yMap && yMap.size > 0) {
-              const existingElements = Array.from(yMap.values());
+            const yExcalMap = yDocRef.current?.getMap<ExcalidrawElement>('excalidraw-elements');
+            const merged = new Map<string, ExcalidrawElement>();
+            if (yExcalMap) {
+              for (const [k, v] of yExcalMap.entries()) merged.set(k, v);
+            }
+            if (yMap) {
+              for (const [k, v] of yMap.entries()) merged.set(k, v);
+            }
+            if (merged.size > 0) {
+              const existingElements = Array.from(merged.values());
               isRemoteUpdatingRef.current = true;
               api.updateScene({
                 elements: existingElements,
@@ -694,6 +734,21 @@ export function WhiteboardCanvas({
           </MainMenu>
         </Excalidraw>
         <WhiteboardCommentsOverlay viewState={viewState} />
+
+        {/* Floating AI Architect Button on Canvas Right Side Top Corner */}
+        <div className="absolute top-3.5 right-3.5 z-20 pointer-events-auto">
+          <button
+            onClick={() => setIsAiModalOpen(true)}
+            className="flex items-center gap-1.5 rounded-xl border border-indigo-500/30 dark:border-indigo-500/40 bg-white/95 dark:bg-slate-900/95 px-3 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-100 hover:border-indigo-500/60 hover:bg-white dark:hover:bg-slate-800 backdrop-blur-xl shadow-lg hover:shadow-xl transition-all duration-200 select-none cursor-pointer group"
+            title="Prompt-to-Diagram Generator (Cmd+K / Ctrl+K)"
+          >
+            <Sparkles className="h-3.5 w-3.5 text-indigo-500 dark:text-indigo-400 group-hover:scale-110 transition-transform shrink-0" />
+            <span>✨ AI Architect</span>
+            <kbd className="hidden sm:inline-flex items-center rounded border border-indigo-200 dark:border-indigo-800/60 bg-indigo-50/80 dark:bg-slate-800/80 px-1 py-0.5 text-[9px] font-mono text-indigo-600 dark:text-indigo-300 ml-0.5 shadow-2xs">
+              ⌘K
+            </kbd>
+          </button>
+        </div>
       </div>
     </div>
   );

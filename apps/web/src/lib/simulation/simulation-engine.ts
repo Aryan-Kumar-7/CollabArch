@@ -154,6 +154,31 @@ export class SimulationEngine {
     this.emitTelemetry();
   }
 
+  /**
+   * Automatically flushes saturated buffers, in-flight packet stalls,
+   * and resets dropped window counters to immediately relieve bottlenecks.
+   */
+  public relieveQueues(): void {
+    for (const node of Array.from(this.topology.nodes.values())) {
+      node.queue = [];
+      node.processedThisTick = 0;
+      node.droppedThisTick = 0;
+    }
+    this.transitingPackets = [];
+    this.latencySamples = [];
+    this.windowDroppedCount = 0;
+    this.droppedRequests = 0;
+    this.emitTelemetry();
+  }
+
+  public clearChaosOverrides(nodeId?: string): void {
+    if (nodeId) {
+      this.originalNodeSpecs.delete(nodeId);
+    } else {
+      this.originalNodeSpecs.clear();
+    }
+  }
+
   public step(deltaTimeMs = 50): void {
     this.executeTick(deltaTimeMs);
     this.emitTelemetry();
@@ -453,6 +478,18 @@ export class SimulationEngine {
       this.recordLatencySample(packet.latencyMs);
       this.emitEvent('packet_completed', packet, node.id);
       return;
+    }
+
+    // Cache hit absorption: Cache hits terminate at the cache layer and do not propagate to downstream databases
+    if (node.type === 'cache' && typeof node.cacheHitRatio === 'number' && node.cacheHitRatio > 0) {
+      if (Math.random() < node.cacheHitRatio) {
+        packet.status = 'completed';
+        this.processedRequests++;
+        this.windowProcessedCount++;
+        this.recordLatencySample(packet.latencyMs);
+        this.emitEvent('packet_completed', packet, node.id);
+        return;
+      }
     }
 
     // Select downstream edge using round-robin distribution

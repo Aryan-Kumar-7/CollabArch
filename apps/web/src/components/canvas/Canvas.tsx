@@ -201,9 +201,9 @@ export function Canvas() {
           size={1.5}
           color={theme === 'dark' ? '#1e293b' : '#cbd5e1'}
         />
-        {/* Floating Canvas Controls: Palette Toggle & AI Architect (Visible when Palette is collapsed) */}
+        {/* Floating Canvas Controls: Palette Toggle (Visible when Palette is collapsed) */}
         {!isSidebarOpen && (
-          <Panel position="top-left" className="!m-3.5 flex items-center gap-2">
+          <Panel position="top-left" className="!m-3.5">
             <button
               onClick={toggleSidebar}
               className="flex items-center gap-2 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-white/95 dark:bg-slate-900/95 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-white dark:hover:bg-slate-800 backdrop-blur-xl shadow-lg hover:shadow-xl transition-all duration-200 select-none cursor-pointer"
@@ -212,20 +212,24 @@ export function Canvas() {
               <Layers3 className="h-3.5 w-3.5 text-sky-500 dark:text-sky-400" />
               <span>Palette</span>
             </button>
-            <button
-              onClick={() => setIsAiModalOpen(true)}
-              className="flex items-center gap-2 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-white/95 dark:bg-slate-900/95 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-white dark:hover:bg-slate-800 backdrop-blur-xl shadow-lg hover:shadow-xl transition-all duration-200 select-none cursor-pointer"
-              title="AI Architect Generator (Cmd+K / Ctrl+K)"
-            >
-              <Sparkles className="h-3.5 w-3.5 text-indigo-500 dark:text-indigo-400" />
-              <span>AI Architect</span>
-            </button>
           </Panel>
         )}
 
-        {/* Floating Canvas Controls: Inspector Toggle (Visible when Inspector is collapsed) */}
-        {!isInspectorOpen && (
-          <Panel position="top-right" className="!m-3.5">
+        {/* Floating Canvas Controls: AI Architect & Inspector Toggle (Canvas Right Side Top Corner) */}
+        <Panel position="top-right" className="!m-3.5 flex items-center gap-2">
+          <button
+            onClick={() => setIsAiModalOpen(true)}
+            className="flex items-center gap-1.5 rounded-xl border border-indigo-500/30 dark:border-indigo-500/40 bg-white/95 dark:bg-slate-900/95 px-3 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-100 hover:border-indigo-500/60 hover:bg-white dark:hover:bg-slate-800 backdrop-blur-xl shadow-lg hover:shadow-xl transition-all duration-200 select-none cursor-pointer group"
+            title="AI Architect Generator (Cmd+K / Ctrl+K)"
+          >
+            <Sparkles className="h-3.5 w-3.5 text-indigo-500 dark:text-indigo-400 group-hover:scale-110 transition-transform shrink-0" />
+            <span>✨ AI Architect</span>
+            <kbd className="hidden sm:inline-flex items-center rounded border border-indigo-200 dark:border-indigo-800/60 bg-indigo-50/80 dark:bg-slate-800/80 px-1 py-0.5 text-[9px] font-mono text-indigo-600 dark:text-indigo-300 ml-0.5 shadow-2xs">
+              ⌘K
+            </kbd>
+          </button>
+
+          {!isInspectorOpen && (
             <button
               onClick={toggleInspector}
               className="flex items-center gap-2 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-white/95 dark:bg-slate-900/95 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-white dark:hover:bg-slate-800 backdrop-blur-xl shadow-lg hover:shadow-xl transition-all duration-200 select-none cursor-pointer"
@@ -237,8 +241,8 @@ export function Canvas() {
                 <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" title="Node selected" />
               )}
             </button>
-          </Panel>
-        )}
+          )}
+        </Panel>
 
         {/* Minimalist Controls */}
         <Controls

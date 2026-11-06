@@ -383,3 +383,32 @@ export const DEFAULT_COMPONENT_CONFIGS: Record<ComponentType, ComponentPaletteIt
     accentColor: '#6366f1', // indigo-500
   },
 };
+
+export type ReviewSeverity = 'critical' | 'warning' | 'info' | 'strength';
+
+export type ReviewCategory =
+  | 'resilience'   // SPOFs, failover, redundancy, single compute instances
+  | 'performance'  // Little's Law, latency mismatches, synchronous blocking
+  | 'caching'      // Missing cache layers, unbuffered read queries
+  | 'queuing'      // Unbuffered bursts, missing async event streaming
+  | 'security';    // Exposed databases, missing auth/VPC boundaries
+
+export interface ArchitectureFinding {
+  id: string;
+  severity: ReviewSeverity;
+  category: ReviewCategory;
+  title: string;
+  description: string;
+  recommendation: string;
+  affectedNodeIds: string[];
+}
+
+export interface ArchitectureReviewResult {
+  healthScore: number; // 0 to 100
+  summary: string;
+  findings: ArchitectureFinding[];
+  evaluatedNodeCount: number;
+  evaluatedEdgeCount: number;
+  reviewedAt: number;
+}
+

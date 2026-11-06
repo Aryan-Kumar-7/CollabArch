@@ -6,6 +6,9 @@ import {
   EdgeSimulationMetrics,
   SimulationMetrics,
   SimulationConfig,
+  AutoTuneTelemetry,
+  AutoTuneAdjustment,
+  AutoTuneResult,
   ComponentType,
   NodeData,
   EdgeData,
@@ -19,6 +22,9 @@ export type {
   EdgeSimulationMetrics,
   SimulationMetrics,
   SimulationConfig,
+  AutoTuneTelemetry,
+  AutoTuneAdjustment,
+  AutoTuneResult,
 };
 
 /**
@@ -32,6 +38,8 @@ export interface SimulationNode {
   latencyMs: number;
   queueDepthLimit: number;
   failureRate: number; // 0.0 - 1.0
+  replicas?: number;
+  cacheHitRatio?: number;
   inDegree: number;
   outDegree: number;
   outgoingEdgeIds: string[];

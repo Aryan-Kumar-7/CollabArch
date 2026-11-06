@@ -73,3 +73,31 @@ export interface SimulationConfig {
   sourceNodeIds?: string[]; // Origin generator nodes
 }
 
+export interface AutoTuneTelemetry {
+  ingressRps: number;
+  currentThroughputRps: number;
+  p99LatencyMs: number;
+  dropRatePct: number;
+  bottleneckNodeIds: string[];
+}
+
+export interface AutoTuneAdjustment {
+  nodeId: string;
+  nodeLabel: string;
+  changes: {
+    capacityRps?: number;
+    replicas?: number;
+    cacheHitRatio?: number;
+    queueDepthLimit?: number;
+  };
+  rationale: string;
+}
+
+export interface AutoTuneResult {
+  summary: string;
+  predictedDropRatePct: number;
+  predictedP99Ms: number;
+  adjustments: AutoTuneAdjustment[];
+}
+
+

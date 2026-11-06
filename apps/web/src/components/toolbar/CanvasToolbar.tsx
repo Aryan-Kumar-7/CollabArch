@@ -13,12 +13,15 @@ import {
   Lock,
   History,
   MessageSquare,
+  ShieldCheck,
 } from 'lucide-react';
-import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from '@clerk/nextjs';
+import { SignedIn, SignedOut, SignInButton, UserButton, useUser, useAuth } from '@clerk/nextjs';
 import { useCanvasStore } from '@/store/canvas-store';
 import { cn } from '@/lib/utils';
 import { RoomMenu } from '@/components/toolbar/RoomMenu';
 import { ShareModal } from '@/components/toolbar/ShareModal';
+import { ArchitectureReviewDrawer } from '@/components/ai/ArchitectureReviewDrawer';
+import type { ArchitectureReviewResult } from '@collabarch/shared-types';
 
 export function CanvasToolbar() {
   const {
@@ -33,11 +36,53 @@ export function CanvasToolbar() {
     toggleHistory,
     isCommentMode,
     toggleCommentMode,
+    nodes,
+    edges,
+    roomId,
   } = useCanvasStore();
 
   const [mounted, setMounted] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const [isReviewLoading, setIsReviewLoading] = useState(false);
+  const [reviewResult, setReviewResult] = useState<ArchitectureReviewResult | null>(null);
+
   const { user, isLoaded: isUserLoaded } = useUser();
+  const { getToken } = useAuth();
+
+  const handleReviewArchitecture = async () => {
+    if (nodes.length === 0) {
+      alert('Please add or generate nodes on the canvas first.');
+      return;
+    }
+
+    setIsReviewOpen(true);
+    setIsReviewLoading(true);
+
+    try {
+      const token = await getToken();
+      const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:4000';
+      const res = await fetch(`${serverUrl}/ai/review-architecture`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ nodes, edges, roomId }),
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to review architecture');
+      }
+
+      const data = await res.json();
+      setReviewResult(data);
+    } catch (err) {
+      console.error('Review error:', err);
+    } finally {
+      setIsReviewLoading(false);
+    }
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -144,6 +189,18 @@ export function CanvasToolbar() {
           </div>
         )}
 
+        {/* AI Architecture Reviewer in Simulator Mode */}
+        {activeMode === 'simulator' && (
+          <button
+            onClick={handleReviewArchitecture}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/80 px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-sm transition-all whitespace-nowrap shrink-0 group"
+            title="Audit architecture for SPOFs, Little's Law, and Bottlenecks"
+          >
+            <ShieldCheck className="h-3.5 w-3.5 text-indigo-500 group-hover:scale-110 transition-transform shrink-0" />
+            <span className="hidden md:inline">Review</span>
+          </button>
+        )}
+
         {/* Architecture Commenting Tool Toggle */}
         <button
           onClick={toggleCommentMode}
@@ -234,6 +291,15 @@ export function CanvasToolbar() {
       <ShareModal
         isOpen={isShareModalOpen}
         onClose={() => setIsShareModalOpen(false)}
+      />
+
+      {/* Architecture Review Slide-Over Drawer */}
+      <ArchitectureReviewDrawer
+        isOpen={isReviewOpen}
+        onClose={() => setIsReviewOpen(false)}
+        reviewResult={reviewResult}
+        isLoading={isReviewLoading}
+        onRecheck={handleReviewArchitecture}
       />
     </header>
   );

@@ -64,6 +64,39 @@ const PRESET_CHIPS: PresetItem[] = [
   },
 ];
 
+const WHITEBOARD_PRESETS: PresetItem[] = [
+  {
+    icon: '🔀',
+    label: 'OAuth2 Authorization Code Flow with PKCE',
+    prompt:
+      'Draw a complete OAuth2 Authorization Code flow with PKCE between Client SPA, Auth Server IdP, and Resource API.',
+  },
+  {
+    icon: '💳',
+    label: 'Stripe Payment & Webhook Lifecycle',
+    prompt:
+      'Draw a sequence diagram for Stripe payment checkout, client payment intent, webhook verification, and order fulfillment.',
+  },
+  {
+    icon: '🛒',
+    label: 'E-Commerce Order State Machine',
+    prompt:
+      'Draw a state machine flowchart for an e-commerce order: Created, Reserved, Payment Pending, Processing, Shipped, Delivered, or Cancelled.',
+  },
+  {
+    icon: '🔄',
+    label: 'GitFlow & CI/CD Pipeline Flowchart',
+    prompt:
+      'Draw a GitFlow branching strategy and automated CI/CD pipeline: Feature branch, PR, GitHub Actions Lint & Test, Docker Build, Staging, and Production deployment.',
+  },
+  {
+    icon: '🧠',
+    label: 'Distributed Cache-Aside Pattern',
+    prompt:
+      'Draw a flowchart of the Cache-Aside pattern: App requests data, checks Redis cache hit vs miss, queries PostgreSQL on miss, populates cache with TTL, and returns response.',
+  },
+];
+
 const GENERATING_STEPS = [
   {
     step: 1,
@@ -85,6 +118,27 @@ const GENERATING_STEPS = [
   },
 ];
 
+const WHITEBOARD_GENERATING_STEPS = [
+  {
+    step: 1,
+    title: 'Analyzing workflow logic & technical entities...',
+    subtitle: 'Structuring steps, decision branches, and terminal states.',
+    icon: BrainCircuit,
+  },
+  {
+    step: 2,
+    title: 'Mapping shapes, colors, and layout grid...',
+    subtitle: 'Allocating non-overlapping canvas coordinates and bounding boxes.',
+    icon: Server,
+  },
+  {
+    step: 3,
+    title: 'Synthesizing native Excalidraw elements...',
+    subtitle: 'Generating vector paths, bound text labels, and directed arrows.',
+    icon: Network,
+  },
+];
+
 export function GenerateArchitectureModal({ isOpen, onClose }: GenerateArchitectureModalProps) {
   const { isSignedIn, getToken } = useAuth();
   const [prompt, setPrompt] = useState('');
@@ -94,8 +148,12 @@ export function GenerateArchitectureModal({ isOpen, onClose }: GenerateArchitect
   const [mounted, setMounted] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { roomId, setNodes, setEdges, setAiSummaryToast } = useCanvasStore();
+  const { activeMode, roomId, setNodes, setEdges, setAiSummaryToast } = useCanvasStore();
   const { fitView } = useReactFlow();
+
+  const isWhiteboard = activeMode === 'whiteboard';
+  const presets = isWhiteboard ? WHITEBOARD_PRESETS : PRESET_CHIPS;
+  const currentGeneratingSteps = isWhiteboard ? WHITEBOARD_GENERATING_STEPS : GENERATING_STEPS;
 
   useEffect(() => {
     setMounted(true);
@@ -117,10 +175,10 @@ export function GenerateArchitectureModal({ isOpen, onClose }: GenerateArchitect
   useEffect(() => {
     if (!isGenerating) return;
     const interval = setInterval(() => {
-      setActiveStepIndex((prev) => (prev + 1) % GENERATING_STEPS.length);
+      setActiveStepIndex((prev) => (prev + 1) % currentGeneratingSteps.length);
     }, 1800);
     return () => clearInterval(interval);
-  }, [isGenerating]);
+  }, [isGenerating, currentGeneratingSteps.length]);
 
   // Handle Escape key to close modal
   useEffect(() => {
@@ -135,13 +193,13 @@ export function GenerateArchitectureModal({ isOpen, onClose }: GenerateArchitect
 
   const executeGeneration = async (promptText: string) => {
     if (!isSignedIn) {
-      setErrorMessage('Please sign in to generate distributed architectures.');
+      setErrorMessage(`Please sign in to generate ${isWhiteboard ? 'whiteboard diagrams' : 'distributed architectures'}.`);
       return;
     }
 
     const cleanPrompt = promptText.trim();
     if (!cleanPrompt) {
-      setErrorMessage('Please enter an architecture description or click a preset.');
+      setErrorMessage(`Please enter a description or click a preset.`);
       return;
     }
 
@@ -152,7 +210,8 @@ export function GenerateArchitectureModal({ isOpen, onClose }: GenerateArchitect
     try {
       const token = await getToken();
       const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:4000';
-      const res = await fetch(`${serverUrl}/ai/generate-architecture`, {
+      const endpoint = isWhiteboard ? '/ai/generate-whiteboard' : '/ai/generate-architecture';
+      const res = await fetch(`${serverUrl}${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -167,42 +226,55 @@ export function GenerateArchitectureModal({ isOpen, onClose }: GenerateArchitect
       if (!res.ok) {
         const errorData = await res.json().catch(() => null);
         throw new Error(
-          errorData?.message || `Architecture generation failed with status ${res.status}`
+          errorData?.message || `Generation failed with status ${res.status}`
         );
       }
 
       const data = await res.json();
 
-      if (!data.nodes || !Array.isArray(data.nodes) || data.nodes.length === 0) {
-        throw new Error('Gemini API returned an empty architecture topology.');
+      if (isWhiteboard) {
+        // Dispatch custom event to notify WhiteboardCanvas to insert elements and scroll to content
+        window.dispatchEvent(
+          new CustomEvent('collabarch:insert-excalidraw-elements', { detail: data.elements })
+        );
+        setAiSummaryToast({
+          title: data.title || 'Generated Whiteboard Diagram',
+          summary: data.summary || 'Synthesized with Google Gemini.',
+          nodeCount: data.elements?.length || 0,
+          edgeCount: 0,
+        });
+      } else {
+        if (!data.nodes || !Array.isArray(data.nodes) || data.nodes.length === 0) {
+          throw new Error('Gemini API returned an empty architecture topology.');
+        }
+
+        // 1. Immediately apply generated nodes & edges to canvas
+        setNodes(data.nodes);
+        setEdges(data.edges || []);
+
+        // 2. Set architectural summary toast banner
+        setAiSummaryToast({
+          title: data.title || 'Generated Distributed Architecture',
+          summary: data.summary || 'Architecture synthesized with Google Gemini API.',
+          nodeCount: data.nodes.length,
+          edgeCount: (data.edges || []).length,
+        });
+
+        // 3. Smoothly center diagram in viewport
+        setTimeout(() => {
+          try {
+            fitView({ padding: 0.25, duration: 600 });
+          } catch (fitErr) {
+            console.warn('[AI Architect] fitView error:', fitErr);
+          }
+        }, 150);
       }
 
-      // 1. Immediately apply generated nodes & edges to canvas
-      setNodes(data.nodes);
-      setEdges(data.edges || []);
-
-      // 2. Set architectural summary toast banner
-      setAiSummaryToast({
-        title: data.title || 'Generated Distributed Architecture',
-        summary: data.summary || 'Architecture synthesized with Google Gemini API.',
-        nodeCount: data.nodes.length,
-        edgeCount: (data.edges || []).length,
-      });
-
-      // 3. Smoothly center diagram in viewport
-      setTimeout(() => {
-        try {
-          fitView({ padding: 0.25, duration: 600 });
-        } catch (fitErr) {
-          console.warn('[AI Architect] fitView error:', fitErr);
-        }
-      }, 150);
-
-      // 4. Close modal
+      // Close modal
       onClose();
     } catch (err: any) {
       console.error('[AI Architect] Generation failed:', err);
-      setErrorMessage(err?.message || 'Failed to generate architecture. Please try again.');
+      setErrorMessage(err?.message || 'Failed to generate diagram. Please try again.');
     } finally {
       setIsGenerating(false);
     }
@@ -245,7 +317,9 @@ export function GenerateArchitectureModal({ isOpen, onClose }: GenerateArchitect
                 </span>
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Describe your distributed system and synthesize diagram in real-time.
+                {isWhiteboard
+                  ? 'Describe your technical workflow, flowchart, or sketch to generate on the canvas.'
+                  : 'Describe your distributed system and synthesize diagram in real-time.'}
               </p>
             </div>
           </div>
@@ -273,7 +347,7 @@ export function GenerateArchitectureModal({ isOpen, onClose }: GenerateArchitect
                     Sign In Required
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm">
-                    Please sign in with your account to design distributed architectures using AI Architect.
+                    {`Please sign in with your account to design ${isWhiteboard ? 'whiteboard diagrams' : 'distributed architectures'} using AI Architect.`}
                   </p>
                 </div>
                 <SignInButton mode="modal">
@@ -288,7 +362,7 @@ export function GenerateArchitectureModal({ isOpen, onClose }: GenerateArchitect
                 <div className="flex items-center gap-2 text-[11px] text-slate-400 dark:text-slate-500">
                   <span className="flex items-center gap-1">
                     <Zap className="h-3 w-3 text-amber-500" />
-                    Auto-topological layout
+                    {isWhiteboard ? 'Auto-grid layout' : 'Auto-topological layout'}
                   </span>
                   <span>•</span>
                   <span>CRDT live sync</span>
@@ -310,10 +384,10 @@ export function GenerateArchitectureModal({ isOpen, onClose }: GenerateArchitect
               {/* Preset Chips Carousel / Wrap */}
               <div>
                 <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2">
-                  ⚡ Quick-Start Architectural Presets
+                  {isWhiteboard ? '⚡ Quick-Start Whiteboard Diagram Presets' : '⚡ Quick-Start Architectural Presets'}
                 </label>
                 <div className="flex flex-wrap gap-2">
-                  {PRESET_CHIPS.map((preset) => (
+                  {presets.map((preset) => (
                     <button
                       key={preset.label}
                       type="button"
@@ -357,7 +431,11 @@ export function GenerateArchitectureModal({ isOpen, onClose }: GenerateArchitect
                       }
                     }}
                     rows={4}
-                    placeholder="Describe your system (e.g. Design a real-time multiplayer gaming server with WebSocket gateway, Redis matchmaker, and DynamoDB player state)..."
+                    placeholder={
+                      isWhiteboard
+                        ? 'Describe your whiteboard diagram (e.g. Draw OAuth2 Authorization Code flow with PKCE between SPA client, Auth0, and API)...'
+                        : 'Describe your system (e.g. Design a real-time multiplayer gaming server with WebSocket gateway, Redis matchmaker, and DynamoDB player state)...'
+                    }
                     className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950/80 p-3.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all disabled:opacity-50 resize-none"
                   />
                 </div>
@@ -379,21 +457,21 @@ export function GenerateArchitectureModal({ isOpen, onClose }: GenerateArchitect
                       </div>
                       <div>
                         <div className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
-                          Step {activeStepIndex + 1} of {GENERATING_STEPS.length}
+                          Step {activeStepIndex + 1} of {currentGeneratingSteps.length}
                         </div>
                         <div className="text-sm font-semibold text-slate-900 dark:text-white">
-                          {GENERATING_STEPS[activeStepIndex].title}
+                          {currentGeneratingSteps[activeStepIndex].title}
                         </div>
                       </div>
                     </div>
 
                     <div className="space-y-1.5 pl-11">
                       <p className="text-xs text-slate-500 dark:text-slate-400">
-                        {GENERATING_STEPS[activeStepIndex].subtitle}
+                        {currentGeneratingSteps[activeStepIndex].subtitle}
                       </p>
                       {/* Step progress pills */}
                       <div className="flex gap-1.5 pt-1">
-                        {GENERATING_STEPS.map((s, idx) => (
+                        {currentGeneratingSteps.map((s, idx) => (
                           <div
                             key={s.step}
                             className={cn(
@@ -416,7 +494,7 @@ export function GenerateArchitectureModal({ isOpen, onClose }: GenerateArchitect
                   <div className="flex items-center gap-2 text-[11px] text-slate-400 dark:text-slate-500">
                     <span className="flex items-center gap-1">
                       <Zap className="h-3 w-3 text-amber-500" />
-                      Auto-topological layout
+                      {isWhiteboard ? 'Auto-grid layout' : 'Auto-topological layout'}
                     </span>
                     <span>•</span>
                     <span>CRDT live sync</span>
@@ -444,7 +522,7 @@ export function GenerateArchitectureModal({ isOpen, onClose }: GenerateArchitect
                       ) : (
                         <>
                           <Sparkles className="h-3.5 w-3.5 group-hover:scale-110 transition-transform" />
-                          <span>Generate Architecture</span>
+                          <span>{isWhiteboard ? 'Generate Diagram' : 'Generate Architecture'}</span>
                           <ArrowRight className="h-3.5 w-3.5 opacity-70 group-hover:translate-x-0.5 transition-transform" />
                         </>
                       )}
