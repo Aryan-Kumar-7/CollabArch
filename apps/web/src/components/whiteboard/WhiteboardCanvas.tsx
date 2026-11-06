@@ -763,18 +763,15 @@ export function WhiteboardCanvas({
         </Excalidraw>
         <WhiteboardCommentsOverlay viewState={viewState} />
 
-        {/* Floating AI Architect Button on Canvas Right Side Top Corner */}
+        {/* Floating AI Architect Button matching System Simulator style */}
         <div className="absolute top-3.5 right-3.5 z-20 pointer-events-auto">
           <button
             onClick={() => setIsAiModalOpen(true)}
-            className="flex items-center gap-1.5 rounded-xl border border-indigo-500/30 dark:border-indigo-500/40 bg-white/95 dark:bg-slate-900/95 px-3 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-100 hover:border-indigo-500/60 hover:bg-white dark:hover:bg-slate-800 backdrop-blur-xl shadow-lg hover:shadow-xl transition-all duration-200 select-none cursor-pointer group"
-            title="Prompt-to-Diagram Generator (Cmd+K / Ctrl+K)"
+            className="flex items-center gap-2 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-white/95 dark:bg-slate-900/95 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-white dark:hover:bg-slate-800 backdrop-blur-xl shadow-lg hover:shadow-xl transition-all duration-200 select-none cursor-pointer"
+            title="AI Architect Generator (Cmd+K / Ctrl+K)"
           >
-            <Sparkles className="h-3.5 w-3.5 text-indigo-500 dark:text-indigo-400 group-hover:scale-110 transition-transform shrink-0" />
-            <span>✨ AI Architect</span>
-            <kbd className="hidden sm:inline-flex items-center rounded border border-indigo-200 dark:border-indigo-800/60 bg-indigo-50/80 dark:bg-slate-800/80 px-1 py-0.5 text-[9px] font-mono text-indigo-600 dark:text-indigo-300 ml-0.5 shadow-2xs">
-              ⌘K
-            </kbd>
+            <Sparkles className="h-3.5 w-3.5 text-indigo-500 dark:text-indigo-400" />
+            <span>AI Architect</span>
           </button>
         </div>
       </div>
