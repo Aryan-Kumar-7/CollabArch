@@ -59,7 +59,7 @@ export class RoomManagerService implements OnModuleDestroy {
   /**
    * Retrieves an active room or initializes a new in-memory Y.Doc session with PostgreSQL cold-start hydration.
    */
-  async getOrCreateRoom(roomId: string, name?: string): Promise<RoomSession> {
+  async getOrCreateRoom(roomId: string, name?: string, seedStarter: boolean = true): Promise<RoomSession> {
     let session = this.rooms.get(roomId);
     if (!session) {
       const doc = new Y.Doc();
@@ -88,8 +88,8 @@ export class RoomManagerService implements OnModuleDestroy {
           this.logger.log(
             `[RoomManager] Cold-start hydrated room "${roomId}" from PostgreSQL snapshot (${roomRecord.documentBlob.length} bytes)`
           );
-        } else {
-          // Only seed starter architectural topology if no documentBlob exists in the database
+        } else if (seedStarter) {
+          // Only seed starter architectural topology if requested and no documentBlob exists in the database
           this.seedStarterArchitecture(doc);
         }
 
@@ -101,7 +101,9 @@ export class RoomManagerService implements OnModuleDestroy {
           `[RoomManager] Could not hydrate snapshot for room "${roomId}", using starter seed:`,
           err?.message || err
         );
-        this.seedStarterArchitecture(doc);
+        if (seedStarter) {
+          this.seedStarterArchitecture(doc);
+        }
       }
 
       this.rooms.set(roomId, session);

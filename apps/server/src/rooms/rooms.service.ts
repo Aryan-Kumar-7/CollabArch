@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
+import * as Y from 'yjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { RoomManagerService } from '../gateway/room-manager.service';
 import { randomUUID } from 'crypto';
@@ -145,11 +146,11 @@ export class RoomsService {
    */
   async getAllRooms(userId?: string, workspaceId?: string) {
     const where: any = {};
-    if (workspaceId) {
+    if (workspaceId && workspaceId.trim() !== '' && workspaceId !== 'all' && workspaceId !== 'null') {
       where.workspaceId = workspaceId;
       // Proactively sync workspace & members in background
       this.syncWorkspaceAndMembers(workspaceId, userId).catch(() => {});
-    } else if (userId) {
+    } else if (userId && userId.trim() !== '') {
       where.ownerId = userId;
     }
 
@@ -182,6 +183,7 @@ export class RoomsService {
         id: room.id,
         slug: room.slug,
         title: room.title,
+        name: room.title,
         description: room.description,
         visibility: room.visibility,
         ownerId: room.ownerId,
@@ -201,7 +203,7 @@ export class RoomsService {
    * Creates a new CanvasRoom in PostgreSQL and prepares in-memory Y.Doc.
    */
   async createRoom(data: CreateRoomDto) {
-    const rawTitle = data.title?.trim() || 'Untitled Architecture Canvas';
+    const rawTitle = data.title?.trim() || (data as any).name?.trim() || 'Untitled Architecture Canvas';
     let slug = data.slug?.trim();
 
     if (!slug) {
@@ -274,13 +276,22 @@ export class RoomsService {
       });
     }
 
-    // Initialize in-memory Yjs session
-    await this.roomManager.getOrCreateRoom(room.slug, room.title);
+    // Initialize in-memory Yjs session (do not seed starter architecture if template is 'blank')
+    const shouldSeed = data.template !== 'blank';
+    const session = await this.roomManager.getOrCreateRoom(room.slug, room.title, shouldSeed);
+    if (!shouldSeed && (!room.documentBlob || room.documentBlob.length === 0)) {
+      const emptySnapshot = Buffer.from(Y.encodeStateAsUpdate(session.doc));
+      await this.prisma.canvasRoom.update({
+        where: { id: room.id },
+        data: { documentBlob: emptySnapshot },
+      });
+    }
 
     return {
       id: room.id,
       slug: room.slug,
       title: room.title,
+      name: room.title,
       description: room.description,
       visibility: room.visibility,
       ownerId: room.ownerId,
@@ -290,8 +301,8 @@ export class RoomsService {
       ownerAvatarUrl: room.owner?.avatarUrl || ownerAvatarUrl,
       createdAt: room.createdAt.toISOString(),
       updatedAt: room.updatedAt.toISOString(),
-      nodeCount: 0,
-      edgeCount: 0,
+      nodeCount: session.doc.getMap('nodes').size,
+      edgeCount: session.doc.getMap('edges').size,
     };
   }
 
@@ -345,6 +356,7 @@ export class RoomsService {
       id: room.id,
       slug: room.slug,
       title: room.title,
+      name: room.title,
       description: room.description,
       visibility: room.visibility,
       ownerId: room.ownerId,

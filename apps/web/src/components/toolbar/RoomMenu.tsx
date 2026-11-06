@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
+import { useUser, useOrganization } from '@clerk/nextjs';
 import {
   DoorOpen,
   Copy,
@@ -18,7 +20,10 @@ import { SERVER_URL } from '@/lib/config';
 import type { CanvasRoomMeta } from '@collabarch/shared-types';
 
 export function RoomMenu() {
-  const { roomId, setRoomId } = useCanvasStore();
+  const router = useRouter();
+  const { user } = useUser();
+  const { organization } = useOrganization();
+  const { roomId, workspaceId, roomTitle } = useCanvasStore();
   const [mounted, setMounted] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [hasCopied, setHasCopied] = useState(false);
@@ -46,11 +51,22 @@ export function RoomMenu() {
     };
   }, [isOpen]);
 
-  // Fetch active rooms from backend when dropdown opens
+  // Fetch active rooms from backend when dropdown opens, scoped to current workspace
   const fetchActiveRooms = async () => {
     setIsLoadingRooms(true);
     try {
-      const res = await fetch(`${SERVER_URL}/rooms`);
+      const targetWorkspaceId = workspaceId || organization?.id;
+      let url = `${SERVER_URL}/rooms`;
+      const params = new URLSearchParams();
+      if (targetWorkspaceId && targetWorkspaceId !== 'all') {
+        params.set('workspaceId', targetWorkspaceId);
+      } else if (user?.id) {
+        params.set('userId', user.id);
+      }
+      if (params.toString()) {
+        url += `?${params.toString()}`;
+      }
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         setActiveRooms(data);
@@ -69,8 +85,8 @@ export function RoomMenu() {
   }, [isOpen]);
 
   const handleCopyShareLink = () => {
-    if (typeof window !== 'undefined') {
-      const shareUrl = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
+    if (typeof window !== 'undefined' && roomId) {
+      const shareUrl = `${window.location.origin}/room/${roomId}`;
       navigator.clipboard.writeText(shareUrl);
       setHasCopied(true);
       setTimeout(() => setHasCopied(false), 2000);
@@ -78,37 +94,59 @@ export function RoomMenu() {
   };
 
   const handleCreateNewRoom = async () => {
-    let newId = `arch-${Math.random().toString(36).substring(2, 8)}`;
+    let newSlug = `arch-${Math.random().toString(36).substring(2, 8)}`;
+    const targetWorkspaceId = workspaceId || organization?.id;
     try {
       const res = await fetch(`${SERVER_URL}/rooms`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: `Architecture Studio ${newId.replace('arch-', '')}` }),
+        body: JSON.stringify({
+          title: `Architecture Studio ${newSlug.replace('arch-', '')}`,
+          workspaceId: targetWorkspaceId || undefined,
+          ownerId: user?.id || 'user_guest_default',
+          ownerName:
+            user?.fullName ||
+            user?.firstName ||
+            user?.username ||
+            'CollabArch Architect',
+          ownerEmail: user?.primaryEmailAddress?.emailAddress,
+          ownerAvatarUrl: user?.imageUrl,
+        }),
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.id) newId = data.id;
+        if (data.slug) newSlug = data.slug;
+        else if (data.id) newSlug = data.id;
       }
     } catch {}
 
-    setRoomId(newId);
     setIsOpen(false);
+    router.push(`/room/${newSlug}`);
   };
 
   const handleJoinById = (e: React.FormEvent) => {
     e.preventDefault();
     const cleanId = joinInput.trim();
     if (cleanId) {
-      setRoomId(cleanId);
       setJoinInput('');
       setIsOpen(false);
+      router.push(`/room/${cleanId}`);
     }
   };
 
-  const handleSelectRoom = (targetRoomId: string) => {
-    setRoomId(targetRoomId);
+  const handleSelectRoom = (targetRoomSlug: string) => {
     setIsOpen(false);
+    router.push(`/room/${targetRoomSlug}`);
   };
+
+  const currentRoomMeta = activeRooms.find(
+    (r) => (r as any).slug === roomId || r.id === roomId
+  );
+  const displayTitle =
+    roomTitle ||
+    (currentRoomMeta as any)?.title ||
+    currentRoomMeta?.name ||
+    (roomId ? roomId : 'Architecture Studio');
 
   return (
     <div className="relative" ref={menuRef}>
@@ -127,7 +165,7 @@ export function RoomMenu() {
           className="font-semibold text-xs max-w-[110px] sm:max-w-[160px] truncate block text-slate-800 dark:text-slate-100 tracking-tight"
           suppressHydrationWarning
         >
-          {mounted ? roomId : 'arch-main'}
+          {mounted ? displayTitle : 'Architecture Studio'}
         </span>
         <ChevronDown
           className={cn(
@@ -152,7 +190,7 @@ export function RoomMenu() {
               className="font-mono text-[10px] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700/60"
               suppressHydrationWarning
             >
-              {mounted ? roomId : 'arch-main'}
+              {mounted ? (roomId || '—') : '—'}
             </span>
           </div>
 
@@ -232,11 +270,13 @@ export function RoomMenu() {
             <div className="max-h-40 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
               {activeRooms.length > 0 ? (
                 activeRooms.map((room) => {
-                  const isCurrent = room.id === roomId;
+                  const roomSlug = (room as any).slug || room.id;
+                  const roomDisplayName = (room as any).title || room.name || roomSlug;
+                  const isCurrent = roomSlug === roomId || room.id === roomId;
                   return (
                     <button
-                      key={room.id}
-                      onClick={() => handleSelectRoom(room.id)}
+                      key={room.id || roomSlug}
+                      onClick={() => handleSelectRoom(roomSlug)}
                       className={cn(
                         'flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-xs text-left transition-colors',
                         isCurrent
@@ -245,8 +285,8 @@ export function RoomMenu() {
                       )}
                     >
                       <div className="truncate pr-2">
-                        <div className="truncate font-medium">{room.name || room.id}</div>
-                        <div className="font-mono text-[10px] text-slate-400 truncate">{room.id}</div>
+                        <div className="truncate font-medium">{roomDisplayName}</div>
+                        <div className="font-mono text-[10px] text-slate-400 truncate">{roomSlug}</div>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
                         {room.nodeCount !== undefined && room.nodeCount > 0 && (

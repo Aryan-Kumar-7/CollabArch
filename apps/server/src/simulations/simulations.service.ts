@@ -34,7 +34,7 @@ export class SimulationsService {
       room = await this.prisma.canvasRoom.create({
         data: {
           slug: roomSlug,
-          title: roomSlug === 'arch-main' ? 'Main Architecture Canvas' : `Canvas Room ${roomSlug}`,
+          title: roomSlug.startsWith('arch-') ? `Architecture Studio ${roomSlug.replace('arch-', '')}` : `Studio ${roomSlug}`,
           ownerId: userId,
         },
       });

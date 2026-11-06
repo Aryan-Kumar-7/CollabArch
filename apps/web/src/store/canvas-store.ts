@@ -79,11 +79,15 @@ interface CanvasState {
   // Studio Mode & Room Metadata
   activeMode: CanvasStudioMode;
   roomId: string;
+  workspaceId: string | null;
+  roomTitle: string | null;
   userProfile: UserProfile;
   collaborators: CollaboratorPresence[];
   isConnected: boolean;
   setActiveMode: (mode: CanvasStudioMode) => void;
   setRoomId: (roomId: string) => void;
+  setWorkspaceId: (workspaceId: string | null) => void;
+  setRoomTitle: (title: string | null) => void;
   setUserProfile: (profile: Partial<UserProfile>) => void;
   setCollaborators: (collaborators: CollaboratorPresence[]) => void;
   setIsConnected: (connected: boolean) => void;
@@ -352,7 +356,6 @@ if (typeof document !== 'undefined') {
   applyThemeToDom(initialTheme);
 }
 
-const DEFAULT_ROOM_ID = 'arch-main';
 const DEFAULT_USER_PROFILE: UserProfile = { name: 'Aryan', color: '#38bdf8' };
 
 let simulationEngineInstance: SimulationEngine | null = null;
@@ -428,7 +431,11 @@ function deleteEdgeFromYjs(id: string) {
 
 export const useCanvasStore = create<CanvasState>((set, get) => ({
   activeMode: 'whiteboard',
-  roomId: DEFAULT_ROOM_ID,
+  roomId: '',
+  workspaceId: null,
+  setWorkspaceId: (workspaceId) => set({ workspaceId }),
+  roomTitle: null,
+  setRoomTitle: (roomTitle) => set({ roomTitle }),
   userProfile: DEFAULT_USER_PROFILE,
   collaborators: [
     {
@@ -442,8 +449,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   userRole: 'editor',
   setUserRole: (role) => set({ userRole: role }),
   theme: initialTheme,
-  nodes: INITIAL_NODES,
-  edges: INITIAL_EDGES,
+  nodes: [],
+  edges: [],
   customComponents: getInitialCustomComponents(),
   selectedNodeId: null,
   selectedEdgeId: null,
@@ -483,16 +490,22 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   setActiveMode: (mode) => set({ activeMode: mode }),
   setRoomId: (roomId) => {
-    if (typeof window !== 'undefined') {
-      try {
-        const url = new URL(window.location.href);
-        if (url.searchParams.get('room') !== roomId) {
-          url.searchParams.set('room', roomId);
-          window.history.pushState(null, '', url.toString());
-        }
-      } catch {}
+    const current = get().roomId;
+    if (current !== roomId) {
+      set({
+        roomId,
+        nodes: [],
+        edges: [],
+        selectedNodeId: null,
+        selectedEdgeId: null,
+        aiSummaryToast: null,
+        workspaceId: null,
+        roomTitle: null,
+      });
+      if (get().isSimulating) {
+        get().stopSimulation();
+      }
     }
-    set({ roomId });
   },
   setUserProfile: (profile) => {
     const current = get().userProfile;

@@ -412,6 +412,12 @@ export function WhiteboardCanvas({
                 if (updateBytes.length > 0) {
                   Y.applyUpdate(doc, updateBytes, 'remote-server');
                 }
+                if (type === 'sync-step-2') {
+                  const currentNodes = Array.from(yNodesMap.values());
+                  const currentEdges = Array.from(yEdgesMap.values());
+                  useCanvasStore.getState().setNodes(currentNodes as any);
+                  useCanvasStore.getState().setEdges(currentEdges as any);
+                }
               } else if (type === 'awareness') {
                 // Parse awareness for collaborator cursor display
                 try {
@@ -503,6 +509,10 @@ export function WhiteboardCanvas({
       isDisposed = true;
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
       useCanvasStore.getState().setIsConnected(false);
+      useCanvasStore.getState().setNodes([]);
+      useCanvasStore.getState().setEdges([]);
+      useCanvasStore.getState().setSelectedNodeId(null);
+      useCanvasStore.getState().setSelectedEdgeId(null);
       setActiveYDoc(null);
       excalidrawApiRef.current = null;
       doc.off('update', handleLocalDocUpdate);
