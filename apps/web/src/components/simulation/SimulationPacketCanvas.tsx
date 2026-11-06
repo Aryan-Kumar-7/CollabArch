@@ -7,10 +7,10 @@ import { useCanvasStore, getSimulationEngine } from '@/store/canvas-store';
 export function SimulationPacketCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { getViewport, getNodes } = useReactFlow();
-  const { activeMode, isSimulating } = useCanvasStore();
+  const { activeMode, isSimulating, isSimPaused } = useCanvasStore();
 
   useEffect(() => {
-    if (!isSimulating || activeMode !== 'simulator') {
+    if (!isSimulating || isSimPaused || activeMode !== 'simulator') {
       const canvas = canvasRef.current;
       if (canvas) {
         const ctx = canvas.getContext('2d');
@@ -170,7 +170,7 @@ export function SimulationPacketCanvas() {
 
     animationFrameId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [isSimulating, activeMode, getViewport, getNodes]);
+  }, [isSimulating, isSimPaused, activeMode, getViewport, getNodes]);
 
   if (activeMode !== 'simulator') {
     return null;

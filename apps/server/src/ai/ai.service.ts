@@ -219,8 +219,9 @@ Design rules:
 
     if (!rawData) {
       this.logger.error(`[AiService] All Gemini models failed:`, lastError);
-      throw new InternalServerErrorException(
-        lastError?.message || 'Failed to generate architecture with Google Gemini API'
+      throw this.formatAiError(
+        lastError,
+        'Failed to generate architecture with Google Gemini API'
       );
     }
 
@@ -376,21 +377,26 @@ Design rules:
       };
 
       room.doc.on('update', captureUpdate);
+      try {
+        room.doc.transact(() => {
+          // Clear previous canvas elements and populate AI generated ones
+          yNodes.clear();
+          yEdges.clear();
 
-      room.doc.transact(() => {
-        // Clear previous canvas elements and populate AI generated ones
-        yNodes.clear();
-        yEdges.clear();
-
-        for (const node of architecture.nodes) {
-          yNodes.set(node.id, node);
-        }
-        for (const edge of architecture.edges) {
-          yEdges.set(edge.id, edge);
-        }
-      }, 'ai-generation');
-
-      room.doc.off('update', captureUpdate);
+          for (const node of architecture.nodes) {
+            if (node && node.id) {
+              yNodes.set(node.id, node);
+            }
+          }
+          for (const edge of architecture.edges) {
+            if (edge && edge.id) {
+              yEdges.set(edge.id, edge);
+            }
+          }
+        }, 'ai-generation');
+      } finally {
+        room.doc.off('update', captureUpdate);
+      }
 
       if (updateDiff) {
         const payloadBase64 = uint8ArrayToBase64(updateDiff);
@@ -529,7 +535,7 @@ Ensure every connection 'from' and 'to' refers to a valid node 'id'.`,
     }
 
     if (!rawData) {
-      throw new InternalServerErrorException(lastError?.message || 'Failed to generate whiteboard diagram.');
+      throw this.formatAiError(lastError, 'Failed to generate whiteboard diagram.');
     }
 
     // Convert semantic nodes & connections into Excalidraw Elements
@@ -633,13 +639,13 @@ Ensure every connection 'from' and 'to' refers to a valid node 'id'.`,
         version: 1,
         versionNonce: Math.floor(Math.random() * 100000),
         isDeleted: false,
-        text: node.label,
+        text: node.label || 'Step',
         fontSize: 14,
         fontFamily: 1,
         textAlign: 'center',
         verticalAlign: 'middle',
         containerId: shapeId,
-        originalText: node.label,
+        originalText: node.label || 'Step',
         lineHeight: 1.25,
         updated: Date.now(),
         link: null,
@@ -710,15 +716,16 @@ Ensure every connection 'from' and 'to' refers to a valid node 'id'.`,
         updateDiff = u;
       };
       room.doc.on('update', capture);
-
-      room.doc.transact(() => {
-        for (const el of elements) {
-          yElements.set(el.id, el);
-          yWhiteboard.set(el.id, el);
-        }
-      }, 'ai-whiteboard-generation');
-
-      room.doc.off('update', capture);
+      try {
+        room.doc.transact(() => {
+          for (const el of elements) {
+            yElements.set(el.id, el);
+            yWhiteboard.set(el.id, el);
+          }
+        }, 'ai-whiteboard-generation');
+      } finally {
+        room.doc.off('update', capture);
+      }
 
       if (updateDiff) {
         const payloadBase64 = uint8ArrayToBase64(updateDiff);
@@ -861,7 +868,7 @@ Scoring Rules:
     }
 
     if (!reviewData) {
-      throw new InternalServerErrorException(lastError?.message || 'Failed to review architecture.');
+      throw this.formatAiError(lastError, 'Failed to review architecture.');
     }
 
     return reviewData;
@@ -1147,23 +1154,24 @@ Optimization Rules:
         updateDiff = u;
       };
       room.doc.on('update', capture);
-
-      room.doc.transact(() => {
-        for (const adj of adjustments) {
-          const existing = yNodes.get(adj.nodeId);
-          if (existing) {
-            yNodes.set(adj.nodeId, {
-              ...existing,
-              data: {
-                ...existing.data,
-                ...adj.changes,
-              },
-            });
+      try {
+        room.doc.transact(() => {
+          for (const adj of adjustments) {
+            const existing = yNodes.get(adj.nodeId);
+            if (existing) {
+              yNodes.set(adj.nodeId, {
+                ...existing,
+                data: {
+                  ...existing.data,
+                  ...adj.changes,
+                },
+              });
+            }
           }
-        }
-      }, 'ai-auto-tune');
-
-      room.doc.off('update', capture);
+        }, 'ai-auto-tune');
+      } finally {
+        room.doc.off('update', capture);
+      }
 
       if (updateDiff) {
         const payloadBase64 = uint8ArrayToBase64(updateDiff);
@@ -1186,6 +1194,21 @@ Optimization Rules:
     } catch (err) {
       this.logger.error(`[AiService] Failed syncing auto-tune adjustments to room "${roomSlug}":`, err);
     }
+  }
+
+  private formatAiError(err: any, fallbackMessage: string): Error {
+    const msg = err?.message || String(err);
+    if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED')) {
+      return new BadRequestException(
+        'Google Gemini rate limit reached. Please wait 30 seconds before generating again.'
+      );
+    }
+    if (msg.includes('503') || msg.includes('UNAVAILABLE') || msg.includes('overloaded')) {
+      return new InternalServerErrorException(
+        'AI service is currently experiencing high demand. Please try again shortly.'
+      );
+    }
+    return new InternalServerErrorException(fallbackMessage || msg);
   }
 }
 

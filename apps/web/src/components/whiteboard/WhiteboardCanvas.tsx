@@ -15,7 +15,7 @@ import type {
 } from '@excalidraw/excalidraw/types';
 import type { ExcalidrawElement } from '@excalidraw/excalidraw/element/types';
 import { useAuth } from '@clerk/nextjs';
-import { useCanvasStore, type CollaboratorPresence } from '@/store/canvas-store';
+import { useCanvasStore, setActiveYDoc, type CollaboratorPresence } from '@/store/canvas-store';
 import { WhiteboardCommentsOverlay, type WhiteboardViewState } from '@/components/comments/WhiteboardCommentsOverlay';
 import type { CanvasNode, CanvasEdge } from '@collabarch/shared-types';
 
@@ -45,24 +45,35 @@ interface WhiteboardCanvasProps {
   wsUrl?: string;
 }
 
-// Browser-safe Base64 <-> Uint8Array utilities
+// Browser-safe Base64 <-> Uint8Array utilities with chunking to prevent call stack overflow
 function uint8ArrayToBase64(bytes: Uint8Array): string {
+  if (!bytes || bytes.length === 0) return '';
+  const CHUNK_SIZE = 0x8000;
   let binary = '';
-  const len = bytes.byteLength;
-  for (let i = 0; i < len; i++) {
-    binary += String.fromCharCode(bytes[i]);
+  for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
+    binary += String.fromCharCode.apply(
+      null,
+      bytes.subarray(i, i + CHUNK_SIZE) as unknown as number[]
+    );
   }
   return window.btoa(binary);
 }
 
 function base64ToUint8Array(base64: string): Uint8Array {
-  const binaryString = window.atob(base64);
-  const len = binaryString.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
+  if (!base64 || typeof base64 !== 'string' || base64.trim() === '') {
+    return new Uint8Array(0);
   }
-  return bytes;
+  try {
+    const binaryString = window.atob(base64);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes;
+  } catch {
+    return new Uint8Array(0);
+  }
 }
 
 // Persistent User ID to survive remounts and mode switches without duplicate registration
@@ -88,6 +99,7 @@ export function WhiteboardCanvas({
   const { isLoaded, isSignedIn, userId: clerkUserId, getToken } = useAuth();
   const [excalidrawApi, setExcalidrawApi] = useState<ExcalidrawImperativeAPI | null>(null);
   const excalidrawApiRef = useRef<ExcalidrawImperativeAPI | null>(null);
+  const pendingRemoteElementsRef = useRef<ExcalidrawElement[] | null>(null);
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [peerCount, setPeerCount] = useState<number>(1);
   const [accessDeniedReason, setAccessDeniedReason] = useState<string | null>(null);
@@ -206,6 +218,7 @@ export function WhiteboardCanvas({
 
     const doc = new Y.Doc();
     yDocRef.current = doc;
+    setActiveYDoc(doc);
     const yElementsMap = doc.getMap<ExcalidrawElement>('whiteboard_elements');
     const yExcalElementsMap = doc.getMap<ExcalidrawElement>('excalidraw-elements');
     yElementsMapRef.current = yElementsMap;
@@ -216,9 +229,6 @@ export function WhiteboardCanvas({
         return;
       }
 
-      const api = excalidrawApiRef.current;
-      if (!api) return;
-
       const remoteMap = new Map<string, ExcalidrawElement>();
       for (const [k, v] of yExcalElementsMap.entries()) {
         remoteMap.set(k, v);
@@ -228,6 +238,12 @@ export function WhiteboardCanvas({
       }
       const currentRemoteElements = Array.from(remoteMap.values());
       if (currentRemoteElements.length === 0) return;
+
+      const api = excalidrawApiRef.current;
+      if (!api) {
+        pendingRemoteElementsRef.current = currentRemoteElements;
+        return;
+      }
 
       isRemoteUpdatingRef.current = true;
       api.updateScene({
@@ -249,9 +265,8 @@ export function WhiteboardCanvas({
     const handleYjsArchitectureNodesChange = (event: Y.YMapEvent<CanvasNode>) => {
       if (event.transaction.origin === 'local-flow-edit') return;
       const currentNodes = Array.from(yNodesMap.values());
-      if (currentNodes.length > 0) {
-        useCanvasStore.getState().setNodes(currentNodes as any);
-      }
+      useCanvasStore.getState().setNodes(currentNodes as any);
+    };
     };
 
     const handleYjsArchitectureEdgesChange = (event: Y.YMapEvent<CanvasEdge>) => {
@@ -398,7 +413,9 @@ export function WhiteboardCanvas({
               } else if (type === 'sync-step-2' || type === 'sync-update') {
                 // Apply remote update to local Y.Doc
                 const updateBytes = base64ToUint8Array(payload);
-                Y.applyUpdate(doc, updateBytes, 'remote-server');
+                if (updateBytes.length > 0) {
+                  Y.applyUpdate(doc, updateBytes, 'remote-server');
+                }
               } else if (type === 'awareness') {
                 // Parse awareness for collaborator cursor display
                 try {
@@ -445,8 +462,8 @@ export function WhiteboardCanvas({
         ws.onclose = (event) => {
           setIsConnected(false);
           useCanvasStore.getState().setIsConnected(false);
-          if (event.code === 4403) {
-            // Access denied by RBAC gatekeeper, do not auto-reconnect
+          if (isDisposed || event.code === 4403) {
+            // Access denied by RBAC gatekeeper or component unmounted, do not auto-reconnect
             return;
           }
           reconnectTimeout = setTimeout(connectWebSocket, 3000);
@@ -490,9 +507,13 @@ export function WhiteboardCanvas({
       isDisposed = true;
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
       useCanvasStore.getState().setIsConnected(false);
+      setActiveYDoc(null);
+      excalidrawApiRef.current = null;
       doc.off('update', handleLocalDocUpdate);
       yElementsMap.unobserve(handleYjsChange);
       yExcalElementsMap.unobserve(handleYjsChange);
+      yNodesMap.unobserve(handleYjsArchitectureNodesChange);
+      yEdgesMap.unobserve(handleYjsArchitectureEdgesChange);
       if (ws) {
         try {
           if (ws.readyState === WebSocket.OPEN) {
@@ -672,25 +693,36 @@ export function WhiteboardCanvas({
               });
             }
 
-            // Immediately render any room elements that arrived before Excalidraw mounted
-            const yMap = yElementsMapRef.current;
-            const yExcalMap = yDocRef.current?.getMap<ExcalidrawElement>('excalidraw-elements');
-            const merged = new Map<string, ExcalidrawElement>();
-            if (yExcalMap) {
-              for (const [k, v] of yExcalMap.entries()) merged.set(k, v);
-            }
-            if (yMap) {
-              for (const [k, v] of yMap.entries()) merged.set(k, v);
-            }
-            if (merged.size > 0) {
-              const existingElements = Array.from(merged.values());
+            if (pendingRemoteElementsRef.current && pendingRemoteElementsRef.current.length > 0) {
               isRemoteUpdatingRef.current = true;
               api.updateScene({
-                elements: existingElements,
+                elements: pendingRemoteElementsRef.current,
               });
+              pendingRemoteElementsRef.current = null;
               requestAnimationFrame(() => {
                 isRemoteUpdatingRef.current = false;
               });
+            } else {
+              // Immediately render any room elements that arrived before Excalidraw mounted
+              const yMap = yElementsMapRef.current;
+              const yExcalMap = yDocRef.current?.getMap<ExcalidrawElement>('excalidraw-elements');
+              const merged = new Map<string, ExcalidrawElement>();
+              if (yExcalMap) {
+                for (const [k, v] of yExcalMap.entries()) merged.set(k, v);
+              }
+              if (yMap) {
+                for (const [k, v] of yMap.entries()) merged.set(k, v);
+              }
+              if (merged.size > 0) {
+                const existingElements = Array.from(merged.values());
+                isRemoteUpdatingRef.current = true;
+                api.updateScene({
+                  elements: existingElements,
+                });
+                requestAnimationFrame(() => {
+                  isRemoteUpdatingRef.current = false;
+                });
+              }
             }
           }}
           theme={theme}

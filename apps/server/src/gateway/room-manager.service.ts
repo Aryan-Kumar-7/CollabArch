@@ -236,6 +236,10 @@ export class RoomManagerService implements OnModuleDestroy {
    * and schedules a debounced snapshot flush to PostgreSQL.
    */
   applyUpdate(roomId: string, update: Uint8Array, origin?: unknown): boolean {
+    if (!update || update.length === 0) {
+      return true;
+    }
+
     const session = this.rooms.get(roomId);
     if (!session) {
       this.logger.warn(`[RoomManager] Cannot apply update: Room "${roomId}" not found`);

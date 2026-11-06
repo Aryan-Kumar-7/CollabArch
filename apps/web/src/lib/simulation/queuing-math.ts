@@ -66,10 +66,10 @@ export function sampleExponentialInterArrival(lambdaRps: number): number {
  * Modeled as T_proc ~ max(1, N(baseLatencyMs, (0.15 * baseLatencyMs)^2))
  */
 export function sampleProcessingLatency(baseLatencyMs: number, jitterRatio = 0.15): number {
-  if (baseLatencyMs <= 0) return 1;
-  const stdev = Math.max(1, baseLatencyMs * jitterRatio);
-  const latency = randomGaussian(baseLatencyMs, stdev);
-  return Math.max(1, Math.round(latency));
+  const safeBase = Number.isFinite(baseLatencyMs) && baseLatencyMs > 0 ? baseLatencyMs : 25;
+  const stdev = Math.max(1, safeBase * jitterRatio);
+  const latency = randomGaussian(safeBase, stdev);
+  return Math.max(1, Math.round(Number.isFinite(latency) ? latency : safeBase));
 }
 
 /**
@@ -85,8 +85,7 @@ export function computeTheoreticalDropProbability(
   serviceRateMu: number,
   queueCapacityK: number
 ): number {
-  if (queueCapacityK <= 0) return 1.0;
-  if (serviceRateMu <= 0) return 1.0;
+  if (queueCapacityK <= 0 || serviceRateMu <= 0) return 1.0;
   if (arrivalRateLambda <= 0) return 0.0;
 
   const rho = arrivalRateLambda / serviceRateMu;
@@ -95,10 +94,21 @@ export function computeTheoreticalDropProbability(
     return 1.0 / (queueCapacityK + 1);
   }
 
+  // When arrival rate significantly exceeds capacity in a large buffer (rho > 1 and K >= 80),
+  // rho^K overflows to Infinity. The theoretical asymptotic limit for M/M/1/K as K -> inf is (rho - 1) / rho.
+  if (rho > 1.0 && (queueCapacityK >= 80 || rho >= 2.0)) {
+    return Math.max(0, Math.min(1.0, (rho - 1.0) / rho));
+  }
+
   const rhoPowerK = Math.pow(rho, queueCapacityK);
   const rhoPowerKPlus1 = rhoPowerK * rho;
 
-  return ((1.0 - rho) * rhoPowerK) / (1.0 - rhoPowerKPlus1);
+  if (!Number.isFinite(rhoPowerK) || !Number.isFinite(rhoPowerKPlus1)) {
+    return rho > 1.0 ? Math.max(0, Math.min(1.0, (rho - 1.0) / rho)) : 0.0;
+  }
+
+  const result = ((1.0 - rho) * rhoPowerK) / (1.0 - rhoPowerKPlus1);
+  return Number.isFinite(result) ? Math.max(0, Math.min(1.0, result)) : (rho > 1.0 ? (rho - 1.0) / rho : 0.0);
 }
 
 /**

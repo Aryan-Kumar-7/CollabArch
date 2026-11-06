@@ -3,6 +3,7 @@ import {
   Logger,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RoomManagerService } from '../gateway/room-manager.service';
@@ -188,6 +189,25 @@ export class RevisionsService {
 
     if (!revision) {
       throw new NotFoundException(`Revision "${id}" not found`);
+    }
+
+    const room = revision.room;
+    if (room.ownerId !== userId) {
+      if (room.workspaceId) {
+        const membership = await this.prisma.workspaceMember.findUnique({
+          where: {
+            userId_workspaceId: {
+              userId,
+              workspaceId: room.workspaceId,
+            },
+          },
+        });
+        if (!membership || membership.role === 'VIEWER') {
+          throw new ForbiddenException('Viewers do not have permission to restore revisions.');
+        }
+      } else if (room.visibility === 'PRIVATE') {
+        throw new ForbiddenException('Only the canvas owner can restore revisions to this private canvas.');
+      }
     }
 
     const roomSlug = revision.room.slug;

@@ -562,6 +562,10 @@ export class CanvasGateway implements OnGatewayConnection, OnGatewayDisconnect {
     roomId: string,
     payloadBase64: string
   ): Promise<void> {
+    if (!payloadBase64 || typeof payloadBase64 !== 'string' || payloadBase64.trim() === '') {
+      return;
+    }
+
     const peer = this.roomManager.getPeer(client);
     const clientRole = (client as any).role || peer?.role;
     if (clientRole === 'viewer' || clientRole === 'VIEWER') {
@@ -571,6 +575,7 @@ export class CanvasGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     try {
       const updateBytes = base64ToUint8Array(payloadBase64);
+      if (updateBytes.length === 0) return;
       const applied = this.roomManager.applyUpdate(roomId, updateBytes, client);
 
       if (applied) {
@@ -600,6 +605,10 @@ export class CanvasGateway implements OnGatewayConnection, OnGatewayDisconnect {
     roomId: string,
     payloadBase64: string
   ): Promise<void> {
+    if (!payloadBase64 || typeof payloadBase64 !== 'string' || payloadBase64.trim() === '') {
+      return;
+    }
+
     const peer = this.roomManager.getPeer(client);
     const clientRole = (client as any).role || peer?.role;
     if (clientRole === 'viewer' || clientRole === 'VIEWER') {
@@ -609,6 +618,7 @@ export class CanvasGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     try {
       const updateBytes = base64ToUint8Array(payloadBase64);
+      if (updateBytes.length === 0) return;
       const applied = this.roomManager.applyUpdate(roomId, updateBytes, client);
 
       if (applied) {

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import * as Y from 'yjs';
 import {
   applyNodeChanges,
   applyEdgeChanges,
@@ -14,6 +15,8 @@ import {
   NodeData,
   DEFAULT_COMPONENT_CONFIGS,
   AutoTuneAdjustment,
+  CanvasNode,
+  CanvasEdge,
 } from '@collabarch/shared-types';
 import {
   SimulationPacket,
@@ -364,6 +367,65 @@ export function getSimulationEngine(): SimulationEngine {
   return simulationEngineInstance;
 }
 
+let activeYDoc: Y.Doc | null = null;
+
+export function setActiveYDoc(doc: Y.Doc | null) {
+  activeYDoc = doc;
+}
+
+function syncNodesToYjs(nodes: ReactFlowNode[]) {
+  if (!activeYDoc || useCanvasStore.getState().userRole === 'viewer') return;
+  const yNodes = activeYDoc.getMap<CanvasNode>('nodes');
+  activeYDoc.transact(() => {
+    for (const n of nodes) {
+      if (n && n.id) {
+        yNodes.set(n.id, {
+          id: n.id,
+          type: n.type as ComponentType,
+          position: n.position,
+          data: n.data,
+        });
+      }
+    }
+  }, 'local-flow-edit');
+}
+
+function deleteNodeFromYjs(id: string) {
+  if (!activeYDoc || useCanvasStore.getState().userRole === 'viewer') return;
+  const yNodes = activeYDoc.getMap<CanvasNode>('nodes');
+  const yEdges = activeYDoc.getMap<CanvasEdge>('edges');
+  activeYDoc.transact(() => {
+    yNodes.delete(id);
+    for (const [edgeId, edge] of yEdges.entries()) {
+      if (edge.source === id || edge.target === id) {
+        yEdges.delete(edgeId);
+      }
+    }
+  }, 'local-flow-edit');
+}
+
+function syncEdgeToYjs(edge: ReactFlowEdge) {
+  if (!activeYDoc || useCanvasStore.getState().userRole === 'viewer') return;
+  const yEdges = activeYDoc.getMap<CanvasEdge>('edges');
+  activeYDoc.transact(() => {
+    yEdges.set(edge.id, {
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      animated: edge.animated,
+      data: edge.data,
+    });
+  }, 'local-flow-edit');
+}
+
+function deleteEdgeFromYjs(id: string) {
+  if (!activeYDoc || useCanvasStore.getState().userRole === 'viewer') return;
+  const yEdges = activeYDoc.getMap<CanvasEdge>('edges');
+  activeYDoc.transact(() => {
+    yEdges.delete(id);
+  }, 'local-flow-edit');
+}
+
 export const useCanvasStore = create<CanvasState>((set, get) => ({
   activeMode: 'whiteboard',
   roomId: DEFAULT_ROOM_ID,
@@ -466,15 +528,36 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   setEdges: (edges) => set({ edges }),
 
   onNodesChange: (changes) => {
-    set({
-      nodes: applyNodeChanges(changes, get().nodes),
-    });
+    const nextNodes = applyNodeChanges(changes, get().nodes);
+    set({ nodes: nextNodes });
+
+    const hasPositionOrDim = changes.some(
+      (c) => (c.type === 'position' && !(c as any).dragging) || c.type === 'dimensions'
+    );
+    if (hasPositionOrDim) {
+      const ids = new Set(
+        changes
+          .filter((c) => (c.type === 'position' && !(c as any).dragging) || c.type === 'dimensions')
+          .map((c) => c.id)
+      );
+      syncNodesToYjs(nextNodes.filter((n) => ids.has(n.id)));
+    }
+    for (const c of changes) {
+      if (c.type === 'remove') {
+        deleteNodeFromYjs(c.id);
+      }
+    }
   },
 
   onEdgesChange: (changes) => {
     set({
       edges: applyEdgeChanges(changes, get().edges),
     });
+    for (const c of changes) {
+      if (c.type === 'remove') {
+        deleteEdgeFromYjs(c.id);
+      }
+    }
   },
 
   onConnect: (connection) => {
@@ -491,6 +574,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     set({
       edges: addEdge(newEdge, get().edges),
     });
+    syncEdgeToYjs(newEdge);
   },
 
   addNode: (type, position, customData) => {
@@ -516,24 +600,31 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       isInspectorOpen: true,
     }));
 
+    syncNodesToYjs([newNode]);
+
     return id;
   },
 
   updateNodeData: (id, partialData) => {
+    let updatedNode: ReactFlowNode | null = null;
     set((state) => ({
       nodes: state.nodes.map((node) => {
         if (node.id === id) {
-          return {
+          updatedNode = {
             ...node,
             data: {
               ...node.data,
               ...partialData,
             },
           };
+          return updatedNode;
         }
         return node;
       }),
     }));
+    if (updatedNode) {
+      syncNodesToYjs([updatedNode]);
+    }
   },
 
   deleteNode: (id) => {
@@ -542,6 +633,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       edges: state.edges.filter((edge) => edge.source !== id && edge.target !== id),
       selectedNodeId: state.selectedNodeId === id ? null : state.selectedNodeId,
     }));
+    deleteNodeFromYjs(id);
   },
 
   duplicateNode: (id) => {
@@ -566,26 +658,38 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       nodes: [...state.nodes, duplicatedNode],
       selectedNodeId: newId,
     }));
+    syncNodesToYjs([duplicatedNode]);
   },
 
   updateEdgeData: (id, partialData) => {
+    let updatedEdge: ReactFlowEdge | null = null;
     set((state) => ({
       edges: state.edges.map((edge) => {
         if (edge.id === id) {
-          return {
+          updatedEdge = {
             ...edge,
             data: {
               ...edge.data,
               ...partialData,
             },
           };
+          return updatedEdge;
         }
         return edge;
       }),
     }));
+    if (updatedEdge) {
+      syncEdgeToYjs(updatedEdge);
+    }
   },
 
   deleteEdge: (id) => {
+    set((state) => ({
+      edges: state.edges.filter((edge) => edge.id !== id),
+      selectedEdgeId: state.selectedEdgeId === id ? null : state.selectedEdgeId,
+    }));
+    deleteEdgeFromYjs(id);
+  },
     set((state) => ({
       edges: state.edges.filter((edge) => edge.id !== id),
       selectedEdgeId: state.selectedEdgeId === id ? null : state.selectedEdgeId,
@@ -624,22 +728,55 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   newCommentTarget: null,
   setNewCommentTarget: (target) => set({ newCommentTarget: target }),
 
-  loadStarterTemplate: () =>
+  loadStarterTemplate: () => {
     set({
       nodes: INITIAL_NODES,
       edges: INITIAL_EDGES,
       selectedNodeId: null,
       selectedEdgeId: null,
       isInspectorOpen: false,
-    }),
+    });
+    if (activeYDoc && get().userRole !== 'viewer') {
+      activeYDoc.transact(() => {
+        const yNodes = activeYDoc!.getMap<CanvasNode>('nodes');
+        const yEdges = activeYDoc!.getMap<CanvasEdge>('edges');
+        yNodes.clear();
+        yEdges.clear();
+        for (const n of INITIAL_NODES) {
+          yNodes.set(n.id, {
+            id: n.id,
+            type: n.type as ComponentType,
+            position: n.position,
+            data: n.data,
+          });
+        }
+        for (const e of INITIAL_EDGES) {
+          yEdges.set(e.id, {
+            id: e.id,
+            source: e.source,
+            target: e.target,
+            animated: e.animated,
+            data: e.data,
+          });
+        }
+      }, 'local-flow-edit');
+    }
+  },
 
-  clearCanvas: () =>
+  clearCanvas: () => {
     set({
       nodes: [],
       edges: [],
       selectedNodeId: null,
       selectedEdgeId: null,
-    }),
+    });
+    if (activeYDoc && get().userRole !== 'viewer') {
+      activeYDoc.transact(() => {
+        activeYDoc!.getMap('nodes').clear();
+        activeYDoc!.getMap('edges').clear();
+      }, 'local-flow-edit');
+    }
+  },
 
   // Simulation Engine State
   isSimulating: false,
@@ -829,6 +966,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     });
 
     set({ nodes: updatedNodes });
+    syncNodesToYjs(updatedNodes);
 
     const engine = getSimulationEngine();
     for (const adj of adjustments) {

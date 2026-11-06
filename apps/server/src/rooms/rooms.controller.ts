@@ -1,5 +1,6 @@
-import { Controller, Get, Post, Patch, Delete, Param, Query, Body, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Query, Body, ForbiddenException, UseGuards } from '@nestjs/common';
 import { RoomsService, CreateRoomDto } from './rooms.service';
+import { ClerkAuthGuard } from '../auth/clerk-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { AuthenticatedUser } from '../auth/auth.types';
 
@@ -39,10 +40,11 @@ export class RoomsController {
   }
 
   @Delete(':slug')
+  @UseGuards(ClerkAuthGuard)
   async deleteRoom(
     @Param('slug') slug: string,
-    @Query('userId') userId?: string
+    @CurrentUser() user: AuthenticatedUser
   ) {
-    return this.roomsService.deleteRoom(slug, userId);
+    return this.roomsService.deleteRoom(slug, user.userId);
   }
 }

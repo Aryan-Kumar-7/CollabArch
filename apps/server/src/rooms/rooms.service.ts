@@ -455,6 +455,26 @@ export class RoomsService {
       throw new NotFoundException(`Room with slug "${slug}" not found`);
     }
 
+    if (userId && room.ownerId !== userId) {
+      let isWorkspaceAdmin = false;
+      if (room.workspaceId) {
+        const member = await this.prisma.workspaceMember.findUnique({
+          where: {
+            userId_workspaceId: {
+              userId,
+              workspaceId: room.workspaceId,
+            },
+          },
+        });
+        if (member && (member.role === 'ADMIN' || (member.role as string) === 'OWNER')) {
+          isWorkspaceAdmin = true;
+        }
+      }
+      if (!isWorkspaceAdmin) {
+        throw new ForbiddenException('Only the canvas owner or workspace admin can delete this canvas room.');
+      }
+    }
+
     await this.activityService.log({
       workspaceId: room.workspaceId,
       roomId: room.id,
