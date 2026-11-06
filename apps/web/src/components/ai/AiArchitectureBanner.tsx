@@ -20,7 +20,7 @@ export function AiArchitectureBanner() {
   return (
     <aside
       aria-label="AI Generated Architecture Summary"
-      className="absolute top-4 left-1/2 -translate-x-1/2 z-30 max-w-xl w-[92%] sm:w-auto animate-in fade-in slide-in-from-top-4 duration-300 pointer-events-auto"
+      className="absolute top-4 left-1/2 -translate-x-1/2 z-[70] max-w-xl w-[92%] sm:w-auto animate-in fade-in slide-in-from-top-4 duration-300 pointer-events-auto"
     >
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 rounded-2xl border border-indigo-500/30 bg-white/95 dark:bg-slate-900/95 p-3.5 shadow-xl shadow-indigo-500/10 backdrop-blur-md text-slate-800 dark:text-slate-100">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 text-white shadow-md shadow-sky-500/20">

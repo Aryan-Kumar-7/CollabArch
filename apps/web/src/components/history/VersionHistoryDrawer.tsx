@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   History,
@@ -68,6 +69,22 @@ export function VersionHistoryDrawer() {
   const [newVersionDesc, setNewVersionDesc] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Close on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isHistoryOpen) {
+        setIsHistoryOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isHistoryOpen, setIsHistoryOpen]);
 
   const fetchRevisions = useCallback(async () => {
     if (!roomId) return;
@@ -170,15 +187,23 @@ export function VersionHistoryDrawer() {
     }
   };
 
-  if (!isHistoryOpen) return null;
+  if (!isHistoryOpen || !mounted) return null;
 
-  return (
-    <aside
-      className="fixed inset-y-0 right-0 z-40 w-full sm:w-96 flex flex-col border-l border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl shadow-2xl transition-all duration-300 animate-in slide-in-from-right"
-      aria-label="Version History"
-    >
-      {/* Drawer Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800 shrink-0">
+  return createPortal(
+    <>
+      {/* Dimmed backdrop overlay */}
+      <div
+        className="fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-[2px] transition-opacity animate-in fade-in duration-200"
+        onClick={() => setIsHistoryOpen(false)}
+      />
+
+      {/* Slide-over Drawer with SOLID opaque background */}
+      <aside
+        className="fixed inset-y-0 right-0 z-50 flex h-full w-full sm:w-96 flex-col border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl transition-all duration-300 animate-in slide-in-from-right"
+        aria-label="Version History"
+      >
+        {/* Drawer Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800 shrink-0 bg-white dark:bg-slate-900">
         <div className="flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/10 text-sky-500">
             <History className="h-4 w-4" />
@@ -396,5 +421,7 @@ export function VersionHistoryDrawer() {
         )}
       </div>
     </aside>
-  );
+  </>,
+  document.body
+);
 }

@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ShieldAlert,
   ShieldCheck,
@@ -36,9 +37,25 @@ export function ArchitectureReviewDrawer({
   onRecheck,
 }: ArchitectureReviewDrawerProps) {
   const [activeFilter, setActiveFilter] = useState<'all' | ReviewSeverity>('all');
+  const [mounted, setMounted] = useState(false);
   const { setCenter, getNode } = useReactFlow();
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Close on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  if (!isOpen || !mounted) return null;
 
   // Jump to & highlight node on canvas
   const handlePinpointNode = (nodeId: string) => {
@@ -64,92 +81,100 @@ export function ArchitectureReviewDrawer({
   const scoreColor =
     score >= 85 ? 'text-emerald-500' : score >= 65 ? 'text-amber-500' : 'text-rose-500';
 
-  return (
-    <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col border-l border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl shadow-2xl animate-in slide-in-from-right duration-300">
-      {/* Top Banner */}
-      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 px-5 py-3.5">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-500 dark:text-indigo-400">
-            <ShieldCheck className="h-5 w-5" />
-          </div>
-          <div>
-            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-              <span>Architecture Review</span>
-              <span className="rounded bg-indigo-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-500">
-                AI SRE
-              </span>
-            </h3>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">
-              Audit for SPOFs, Little's Law, and Bottlenecks
-            </p>
-          </div>
-        </div>
+  return createPortal(
+    <>
+      {/* Dimmed backdrop overlay */}
+      <div
+        className="fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-[2px] transition-opacity animate-in fade-in duration-200"
+        onClick={onClose}
+      />
 
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={onRecheck}
-            disabled={isLoading}
-            className="rounded-lg p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
-            title="Re-run Review"
-          >
-            <RefreshCw className={cn('h-4 w-4', isLoading && 'animate-spin text-sky-500')} />
-          </button>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* Drawer Content */}
-      <div className="flex-1 overflow-y-auto p-5 space-y-4">
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center space-y-3">
-            <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-sky-500/20 to-indigo-500/20 text-indigo-500">
-              <Sparkles className="h-7 w-7 animate-pulse text-indigo-500" />
+      {/* Slide-over Drawer with SOLID opaque background */}
+      <div className="fixed inset-y-0 right-0 z-50 flex h-full w-full max-w-md flex-col border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl transition-all animate-in slide-in-from-right duration-300">
+        {/* Top Banner */}
+        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 px-5 py-3.5 shrink-0 bg-white dark:bg-slate-900">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 shrink-0">
+              <ShieldCheck className="h-5 w-5" />
             </div>
-            <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-              Auditing System Architecture...
-            </h4>
-            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs leading-relaxed">
-              Analyzing Little's Law capacities, single points of failure, unbuffered calls, and security isolation.
-            </p>
-          </div>
-        ) : reviewResult ? (
-          <>
-            {/* Scorecard Widget */}
-            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                    Health Score
-                  </span>
-                  <div className="flex items-baseline gap-1 mt-0.5">
-                    <span className={cn('text-3xl font-extrabold tracking-tight', scoreColor)}>
-                      {score}
-                    </span>
-                    <span className="text-xs font-semibold text-slate-400">/100</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 text-xs">
-                  <div className="flex items-center gap-1 rounded-md bg-rose-500/10 px-2 py-1 font-semibold text-rose-500">
-                    <span>{criticalCount}</span>
-                    <span className="text-[10px]">Critical</span>
-                  </div>
-                  <div className="flex items-center gap-1 rounded-md bg-amber-500/10 px-2 py-1 font-semibold text-amber-500">
-                    <span>{warningCount}</span>
-                    <span className="text-[10px]">Warnings</span>
-                  </div>
-                </div>
-              </div>
-
-              <p className="mt-2.5 text-xs text-slate-600 dark:text-slate-300 leading-relaxed border-t border-slate-200/60 dark:border-slate-800/60 pt-2.5">
-                {reviewResult.summary}
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                <span>Architecture Review</span>
+                <span className="rounded bg-indigo-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-500">
+                  AI SRE
+                </span>
+              </h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Audit for SPOFs, Little's Law, and Bottlenecks
               </p>
             </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={onRecheck}
+              disabled={isLoading}
+              className="rounded-lg p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
+              title="Re-run Review"
+            >
+              <RefreshCw className={cn('h-4 w-4', isLoading && 'animate-spin text-sky-500')} />
+            </button>
+            <button
+              onClick={onClose}
+              className="rounded-lg p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Drawer Content */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center space-y-3">
+              <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-sky-500/20 to-indigo-500/20 text-indigo-500">
+                <Sparkles className="h-7 w-7 animate-pulse text-indigo-500" />
+              </div>
+              <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                Auditing System Architecture...
+              </h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs leading-relaxed">
+                Analyzing Little's Law capacities, single points of failure, unbuffered calls, and security isolation.
+              </p>
+            </div>
+          ) : reviewResult ? (
+            <>
+              {/* Scorecard Widget with Solid Background */}
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Health Score
+                    </span>
+                    <div className="flex items-baseline gap-1 mt-0.5">
+                      <span className={cn('text-3xl font-extrabold tracking-tight', scoreColor)}>
+                        {score}
+                      </span>
+                      <span className="text-xs font-semibold text-slate-400">/100</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-xs shrink-0">
+                    <div className="flex items-center gap-1 rounded-md bg-rose-500/10 px-2 py-1 font-semibold text-rose-500 shrink-0">
+                      <span>{criticalCount}</span>
+                      <span className="text-[10px]">Critical</span>
+                    </div>
+                    <div className="flex items-center gap-1 rounded-md bg-amber-500/10 px-2 py-1 font-semibold text-amber-500 shrink-0">
+                      <span>{warningCount}</span>
+                      <span className="text-[10px]">Warnings</span>
+                    </div>
+                  </div>
+                </div>
+
+                <p className="mt-2.5 text-xs text-slate-600 dark:text-slate-300 leading-relaxed border-t border-slate-200/60 dark:border-slate-700/60 pt-2.5">
+                  {reviewResult.summary}
+                </p>
+              </div>
 
             {/* Filter Pills */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
@@ -267,6 +292,8 @@ export function ArchitectureReviewDrawer({
         ) : null}
       </div>
     </div>
-  );
+  </>,
+  document.body
+);
 }
 

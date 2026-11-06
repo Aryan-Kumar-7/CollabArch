@@ -27,7 +27,7 @@ export function SimulationControls() {
   }
 
   return (
-    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 sm:gap-3.5 rounded-2xl border border-slate-200/90 dark:border-slate-800/90 bg-white/95 dark:bg-slate-900/95 px-3.5 sm:px-4 py-2 backdrop-blur-xl shadow-xl transition-all duration-200 select-none">
+    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 sm:gap-3.5 rounded-2xl border border-slate-200/90 dark:border-slate-800/90 bg-white/95 dark:bg-slate-900/95 px-3.5 sm:px-4 py-2 backdrop-blur-xl shadow-xl transition-all duration-200 select-none">
       {/* Play / Pause / Stop Controls */}
       <div className="flex items-center gap-1.5">
         {!isSimulating ? (

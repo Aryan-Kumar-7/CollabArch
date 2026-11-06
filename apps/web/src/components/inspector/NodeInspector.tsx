@@ -93,7 +93,7 @@ export function NodeInspector() {
   return (
     <aside
       className={cn(
-        'relative flex flex-col border-l border-slate-200 dark:border-slate-800/80 bg-white/95 dark:bg-slate-950/85 backdrop-blur-xl transition-all duration-300 z-10',
+        'relative flex flex-col border-l border-slate-200 dark:border-slate-800/80 bg-white/95 dark:bg-slate-950/85 backdrop-blur-xl transition-all duration-300 z-30',
         isInspectorOpen ? 'w-84' : 'w-0 border-l-0'
       )}
     >
@@ -101,7 +101,7 @@ export function NodeInspector() {
       {isInspectorOpen && (
         <button
           onClick={toggleInspector}
-          className="absolute -left-7 top-4 z-20 flex h-7 w-7 items-center justify-center rounded-l-md border border-r-0 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white shadow-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          className="absolute -left-7 top-4 z-30 flex h-7 w-7 items-center justify-center rounded-l-md border border-r-0 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white shadow-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           title="Collapse inspector"
           aria-label="Collapse inspector"
         >

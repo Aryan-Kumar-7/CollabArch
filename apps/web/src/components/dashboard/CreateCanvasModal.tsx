@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
 import { SERVER_URL } from '@/lib/config';
@@ -53,8 +54,13 @@ export function CreateCanvasModal({ isOpen, onClose, workspaceId }: CreateCanvas
   const [selectedTemplate, setSelectedTemplate] = useState('blank');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!isOpen || !mounted) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,7 +107,7 @@ export function CreateCanvasModal({ isOpen, onClose, workspaceId }: CreateCanvas
     }
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150">
       <div
         className="relative w-full max-w-xl rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden transition-colors"
@@ -229,6 +235,7 @@ export function CreateCanvasModal({ isOpen, onClose, workspaceId }: CreateCanvas
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

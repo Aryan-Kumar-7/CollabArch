@@ -180,7 +180,7 @@ export function SimulationHud() {
 
   return (
     <>
-      <div className="absolute bottom-5 right-5 z-20 w-80 sm:w-92 rounded-2xl border border-slate-200/90 dark:border-slate-800/90 bg-white/95 dark:bg-slate-900/95 p-4 backdrop-blur-xl shadow-2xl space-y-3.5 select-none transition-all duration-200">
+      <div className="absolute bottom-5 right-5 z-30 w-80 sm:w-92 rounded-2xl border border-slate-200/90 dark:border-slate-800/90 bg-white/95 dark:bg-slate-900/95 p-4 backdrop-blur-xl shadow-2xl space-y-3.5 select-none transition-all duration-200">
         {/* HUD Header */}
         <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-2.5">
           <div className="flex items-center gap-2">

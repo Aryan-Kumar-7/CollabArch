@@ -18,7 +18,7 @@ export function CanvasStatusHud() {
   return (
     <aside
       aria-label="Canvas Connection and Sync Status"
-      className="fixed bottom-5 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2.5 rounded-full border border-slate-200/80 dark:border-slate-800/80 bg-white/95 dark:bg-slate-900/95 px-3.5 py-1.5 text-[11px] font-medium text-slate-700 dark:text-slate-300 shadow-xl shadow-slate-900/10 backdrop-blur-md transition-all select-none pointer-events-auto"
+      className="fixed bottom-5 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2.5 rounded-full border border-slate-200/80 dark:border-slate-800/80 bg-white/95 dark:bg-slate-900/95 px-3.5 py-1.5 text-[11px] font-medium text-slate-700 dark:text-slate-300 shadow-xl shadow-slate-900/10 backdrop-blur-md transition-all select-none pointer-events-auto"
     >
       {/* Live Sync Indicator */}
       <div className="flex items-center gap-1.5">
