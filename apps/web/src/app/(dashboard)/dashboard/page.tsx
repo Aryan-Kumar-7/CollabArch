@@ -265,7 +265,7 @@ export default function DashboardPage() {
       </header>
 
       {/* Main Content Body */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-6 py-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-6 pt-8 pb-16">
         {/* Quick Start / New Canvas Hero Section */}
         <div className="mb-10">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">

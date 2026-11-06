@@ -8,6 +8,9 @@ export function uint8ArrayToBase64(bytes: Uint8Array): string {
 }
 
 export function base64ToUint8Array(base64Str: string): Uint8Array {
+  if (!base64Str || typeof base64Str !== 'string') {
+    return new Uint8Array(0);
+  }
   const buf = Buffer.from(base64Str, 'base64');
   return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
 }
@@ -23,7 +26,11 @@ export function toUint8Array(data: unknown): Uint8Array {
     return base64ToUint8Array(data);
   }
   if (Array.isArray(data)) {
-    return new Uint8Array(data);
+    const merged =
+      data.length > 0 && Buffer.isBuffer(data[0])
+        ? Buffer.concat(data as Buffer[])
+        : Buffer.from(data);
+    return new Uint8Array(merged.buffer, merged.byteOffset, merged.byteLength);
   }
   throw new Error(`Cannot convert ${typeof data} to Uint8Array`);
 }

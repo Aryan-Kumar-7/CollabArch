@@ -92,7 +92,7 @@ export function StudioCanvas({ initialRoomId }: StudioCanvasProps) {
 
   return (
     <ReactFlowProvider>
-      <main className="flex h-screen w-screen flex-col overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-200">
+      <main className="flex h-screen w-screen flex-col overflow-hidden select-none bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-200">
         <CanvasToolbar />
         <div className="relative flex flex-1 overflow-hidden">
           <div className={cn('h-full w-full', activeMode !== 'whiteboard' && 'hidden')}>
