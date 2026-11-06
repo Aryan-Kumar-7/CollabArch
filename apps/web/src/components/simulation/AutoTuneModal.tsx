@@ -20,6 +20,7 @@ import { useAuth } from '@clerk/nextjs';
 import { AutoTuneResult, AutoTuneTelemetry } from '@collabarch/shared-types';
 import { useCanvasStore } from '@/store/canvas-store';
 import { cn } from '@/lib/utils';
+import { SERVER_URL } from '@/lib/config';
 
 interface AutoTuneModalProps {
   isOpen: boolean;
@@ -73,8 +74,7 @@ export function AutoTuneModal({
       // 2. Trigger CRDT room update on server if connected to a room
       if (roomId) {
         const token = await getToken().catch(() => null);
-        const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:4000';
-        await fetch(`${serverUrl}/ai/apply-auto-tune`, {
+        await fetch(`${SERVER_URL}/ai/apply-auto-tune`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

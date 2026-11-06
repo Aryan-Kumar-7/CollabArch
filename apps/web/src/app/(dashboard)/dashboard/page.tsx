@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { CreateCanvasModal } from '@/components/dashboard/CreateCanvasModal';
 import { CanvasCard, type CanvasRoomCardData } from '@/components/dashboard/CanvasCard';
+import { SERVER_URL } from '@/lib/config';
 
 export interface WorkspaceItem {
   id: string;
@@ -64,7 +65,7 @@ export default function DashboardPage() {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const res = await fetch('http://localhost:4000/workspaces', { headers });
+      const res = await fetch(`${SERVER_URL}/workspaces`, { headers });
       if (res.ok) {
         const data: WorkspaceItem[] = await res.json();
         setWorkspaces(data);
@@ -93,11 +94,11 @@ export default function DashboardPage() {
   const fetchRooms = useCallback(async () => {
     setIsLoading(true);
     try {
-      let url = 'http://localhost:4000/rooms';
+      let url = `${SERVER_URL}/rooms`;
       if (selectedWorkspaceId && selectedWorkspaceId !== 'all') {
-        url = `http://localhost:4000/rooms?workspaceId=${selectedWorkspaceId}`;
+        url = `${SERVER_URL}/rooms?workspaceId=${selectedWorkspaceId}`;
       } else if (organization?.id) {
-        url = `http://localhost:4000/rooms?workspaceId=${organization.id}`;
+        url = `${SERVER_URL}/rooms?workspaceId=${organization.id}`;
       }
       const res = await fetch(url);
       if (res.ok) {

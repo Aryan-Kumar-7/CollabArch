@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useCanvasStore } from '@/store/canvas-store';
 import { cn } from '@/lib/utils';
+import { SERVER_URL } from '@/lib/config';
 import type { CanvasRoomMeta } from '@collabarch/shared-types';
 
 export function RoomMenu() {
@@ -49,7 +50,7 @@ export function RoomMenu() {
   const fetchActiveRooms = async () => {
     setIsLoadingRooms(true);
     try {
-      const res = await fetch('http://localhost:4000/rooms');
+      const res = await fetch(`${SERVER_URL}/rooms`);
       if (res.ok) {
         const data = await res.json();
         setActiveRooms(data);
@@ -79,7 +80,7 @@ export function RoomMenu() {
   const handleCreateNewRoom = async () => {
     let newId = `arch-${Math.random().toString(36).substring(2, 8)}`;
     try {
-      const res = await fetch('http://localhost:4000/rooms', {
+      const res = await fetch(`${SERVER_URL}/rooms`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: `Architecture Studio ${newId.replace('arch-', '')}` }),

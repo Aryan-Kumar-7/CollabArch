@@ -19,6 +19,7 @@ import {
 import { useReactFlow } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvas-store';
 import { cn } from '@/lib/utils';
+import { SERVER_URL } from '@/lib/config';
 
 interface GenerateArchitectureModalProps {
   isOpen: boolean;
@@ -209,9 +210,8 @@ export function GenerateArchitectureModal({ isOpen, onClose }: GenerateArchitect
 
     try {
       const token = await getToken();
-      const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:4000';
       const endpoint = isWhiteboard ? '/ai/generate-whiteboard' : '/ai/generate-architecture';
-      const res = await fetch(`${serverUrl}${endpoint}`, {
+      const res = await fetch(`${SERVER_URL}${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

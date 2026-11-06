@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useCanvasStore, type CollaboratorPresence } from '@/store/canvas-store';
 import { useUser } from '@clerk/nextjs';
+import { SERVER_URL } from '@/lib/config';
 
 interface ShareModalProps {
   isOpen: boolean;
@@ -43,7 +44,7 @@ export function ShareModal({ isOpen, onClose }: ShareModalProps) {
   useEffect(() => {
     if (!isOpen || !roomId) return;
     let isMounted = true;
-    fetch(`http://localhost:4000/rooms/${roomId}`)
+    fetch(`${SERVER_URL}/rooms/${roomId}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (isMounted && data?.visibility) {
@@ -62,7 +63,7 @@ export function ShareModal({ isOpen, onClose }: ShareModalProps) {
     setErrorMessage(null);
     setIsUpdating(true);
     try {
-      const res = await fetch(`http://localhost:4000/rooms/${roomId}/visibility`, {
+      const res = await fetch(`${SERVER_URL}/rooms/${roomId}/visibility`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -64,12 +64,15 @@ const nodeTypes: NodeTypes = {
 
 export function Canvas() {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
+  const hasFittedRef = useRef(false);
   const { screenToFlowPosition, fitView } = useReactFlow();
 
   const {
     activeMode,
     nodes,
     edges,
+    viewport,
+    setViewport,
     onNodesChange,
     onEdgesChange,
     onConnect,
@@ -90,15 +93,16 @@ export function Canvas() {
     setIsAiModalOpen,
   } = useCanvasStore();
 
-  // Auto-center canvas whenever switching into simulator mode or when nodes change
+  // Auto-center canvas on initial simulator mount, avoiding wiping user pan/zoom on subsequent tab switches
   useEffect(() => {
-    if (activeMode === 'simulator') {
+    if (activeMode === 'simulator' && !hasFittedRef.current && nodes.length > 0) {
       const timer = setTimeout(() => {
         fitView({ padding: 0.3, duration: 400 });
+        hasFittedRef.current = true;
       }, 60);
       return () => clearTimeout(timer);
     }
-  }, [activeMode, fitView]);
+  }, [activeMode, fitView, nodes.length]);
 
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault();
@@ -118,7 +122,7 @@ export function Canvas() {
       if (customDataStr) {
         try {
           customData = JSON.parse(customDataStr);
-        } catch {}
+        } catch { }
       }
 
       const position = screenToFlowPosition({
@@ -176,7 +180,11 @@ export function Canvas() {
         }}
         onDragOver={onDragOver}
         onDrop={onDrop}
-        fitView
+        onMoveEnd={(_, vp) => {
+          setViewport(vp);
+        }}
+        defaultViewport={viewport}
+        fitView={!hasFittedRef.current}
         fitViewOptions={{ padding: 0.25 }}
         minZoom={0.2}
         maxZoom={2.5}

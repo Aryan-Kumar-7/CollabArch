@@ -610,7 +610,7 @@ export class SimulationEngine {
     for (const [nodeId, node] of Array.from(this.topology.nodes.entries())) {
       const nodeRps = Math.round(node.processedThisTick * 10); // Extrapolated RPS
       const currentQueueDepth = node.queue.length;
-      const maxQueueDepth = node.queueDepthLimit;
+      const maxQueueDepth = Math.max(1, node.queueDepthLimit);
       const utilization = Math.min(
         1.0,
         Math.round((currentQueueDepth / maxQueueDepth) * 100) / 100
@@ -624,7 +624,9 @@ export class SimulationEngine {
 
       // A node is a bottleneck if queue is >= 80% saturated or utilization >= 0.85
       const isBottleneck =
-        currentQueueDepth / maxQueueDepth >= 0.8 || utilization >= 0.85;
+        (this.config.customArrivalRateRps ?? 1) > 0 &&
+        currentQueueDepth > 0 &&
+        (currentQueueDepth / maxQueueDepth >= 0.8 || utilization >= 0.85);
 
       if (isBottleneck) {
         bottleneckNodeIds.push(nodeId);

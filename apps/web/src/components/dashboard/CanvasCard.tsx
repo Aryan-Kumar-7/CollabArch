@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { SERVER_URL } from '@/lib/config';
 import {
   Share2,
   Trash2,
@@ -81,7 +82,7 @@ export function CanvasCard({ room, onDelete }: CanvasCardProps) {
 
     setIsDeleting(true);
     try {
-      const res = await fetch(`http://localhost:4000/rooms/${room.slug}`, {
+      const res = await fetch(`${SERVER_URL}/rooms/${room.slug}`, {
         method: 'DELETE',
       });
       if (res.ok) {
@@ -215,7 +216,7 @@ export function CanvasCard({ room, onDelete }: CanvasCardProps) {
           <div className="flex items-center gap-2 shrink-0">
             <div className="flex items-center gap-1" title="Last edited">
               <Clock className="h-3 w-3 text-slate-400" />
-              <span>{formatRelativeTime(room.updatedAt)}</span>
+              <span suppressHydrationWarning>{formatRelativeTime(room.updatedAt)}</span>
             </div>
 
             <Link

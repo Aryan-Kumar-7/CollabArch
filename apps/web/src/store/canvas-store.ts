@@ -413,7 +413,7 @@ function syncEdgeToYjs(edge: ReactFlowEdge) {
       source: edge.source,
       target: edge.target,
       animated: edge.animated,
-      data: edge.data,
+      data: edge.data as any,
     });
   }, 'local-flow-edit');
 }
@@ -538,7 +538,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       const ids = new Set(
         changes
           .filter((c) => (c.type === 'position' && !(c as any).dragging) || c.type === 'dimensions')
-          .map((c) => c.id)
+          .map((c) => (c as any).id as string)
       );
       syncNodesToYjs(nextNodes.filter((n) => ids.has(n.id)));
     }
@@ -690,11 +690,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     }));
     deleteEdgeFromYjs(id);
   },
-    set((state) => ({
-      edges: state.edges.filter((edge) => edge.id !== id),
-      selectedEdgeId: state.selectedEdgeId === id ? null : state.selectedEdgeId,
-    }));
-  },
 
   setSelectedNodeId: (id) => {
     set({
@@ -756,7 +751,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
             source: e.source,
             target: e.target,
             animated: e.animated,
-            data: e.data,
+            data: e.data as any,
           });
         }
       }, 'local-flow-edit');

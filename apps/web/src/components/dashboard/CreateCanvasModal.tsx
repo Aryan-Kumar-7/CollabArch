@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
+import { SERVER_URL } from '@/lib/config';
 import {
   X,
   Sparkles,
@@ -72,7 +73,7 @@ export function CreateCanvasModal({ isOpen, onClose, workspaceId }: CreateCanvas
       const ownerEmail = user?.primaryEmailAddress?.emailAddress;
       const ownerAvatarUrl = user?.imageUrl;
 
-      const res = await fetch('http://localhost:4000/rooms', {
+      const res = await fetch(`${SERVER_URL}/rooms`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

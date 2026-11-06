@@ -17,6 +17,7 @@ import { AutoTuneResult, AutoTuneTelemetry } from '@collabarch/shared-types';
 import { useCanvasStore } from '@/store/canvas-store';
 import { AutoTuneModal } from './AutoTuneModal';
 import { cn } from '@/lib/utils';
+import { SERVER_URL } from '@/lib/config';
 
 export function SimulationHud() {
   const {
@@ -61,6 +62,14 @@ export function SimulationHud() {
 
   const handleAutoTune = async () => {
     if (!simMetrics) return;
+    if (!nodes || nodes.length === 0) {
+      setToast({
+        type: 'error',
+        message: 'Add components to canvas before running Auto-Tune.',
+      });
+      setTimeout(() => setToast(null), 4000);
+      return;
+    }
     setIsAutoTuning(true);
     setToast(null);
 
@@ -75,14 +84,13 @@ export function SimulationHud() {
 
     try {
       const token = await getToken().catch(() => null);
-      const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:4000';
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'x-user-id': user?.id || 'user_sim_architect',
       };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const res = await fetch(`${serverUrl}/ai/auto-tune`, {
+      const res = await fetch(`${SERVER_URL}/ai/auto-tune`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -114,12 +122,19 @@ export function SimulationHud() {
 
   const handleSaveBenchmark = async () => {
     if (!simMetrics) return;
+    if (!nodes || nodes.length === 0) {
+      setToast({
+        type: 'error',
+        message: 'Add components to canvas before saving benchmark.',
+      });
+      setTimeout(() => setToast(null), 4000);
+      return;
+    }
     setIsSaving(true);
     setToast(null);
 
     try {
       const token = await getToken().catch(() => null);
-      const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:4000';
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'x-user-id': user?.id || 'user_sim_architect',
@@ -135,7 +150,7 @@ export function SimulationHud() {
         metricsSnapshot: simMetrics,
       };
 
-      const res = await fetch(`${serverUrl}/rooms/${roomId}/simulations`, {
+      const res = await fetch(`${SERVER_URL}/rooms/${roomId}/simulations`, {
         method: 'POST',
         headers,
         body: JSON.stringify(payload),

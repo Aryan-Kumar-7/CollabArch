@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils';
 import { RoomMenu } from '@/components/toolbar/RoomMenu';
 import { ShareModal } from '@/components/toolbar/ShareModal';
 import { ArchitectureReviewDrawer } from '@/components/ai/ArchitectureReviewDrawer';
+import { SERVER_URL } from '@/lib/config';
 import type { ArchitectureReviewResult } from '@collabarch/shared-types';
 
 export function CanvasToolbar() {
@@ -39,6 +40,7 @@ export function CanvasToolbar() {
     nodes,
     edges,
     roomId,
+    setAiSummaryToast,
   } = useCanvasStore();
 
   const [mounted, setMounted] = useState(false);
@@ -52,7 +54,12 @@ export function CanvasToolbar() {
 
   const handleReviewArchitecture = async () => {
     if (nodes.length === 0) {
-      alert('Please add or generate nodes on the canvas first.');
+      setAiSummaryToast({
+        title: 'Empty Canvas',
+        summary: 'Please add or generate components on the canvas before requesting an AI architecture review.',
+        nodeCount: 0,
+        edgeCount: 0,
+      });
       return;
     }
 
@@ -61,8 +68,7 @@ export function CanvasToolbar() {
 
     try {
       const token = await getToken();
-      const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:4000';
-      const res = await fetch(`${serverUrl}/ai/review-architecture`, {
+      const res = await fetch(`${SERVER_URL}/ai/review-architecture`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

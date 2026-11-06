@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { useUser, useAuth } from '@clerk/nextjs';
+import { SERVER_URL } from '@/lib/config';
 
 export function UserSyncProvider({ children }: { children: React.ReactNode }) {
   const { user, isLoaded, isSignedIn } = useUser();
@@ -42,7 +43,7 @@ export function UserSyncProvider({ children }: { children: React.ReactNode }) {
           avatarUrl: user.imageUrl || null,
         };
 
-        const res = await fetch('http://localhost:4000/users/sync', {
+        const res = await fetch(`${SERVER_URL}/users/sync`, {
           method: 'POST',
           headers,
           body: JSON.stringify(payload),

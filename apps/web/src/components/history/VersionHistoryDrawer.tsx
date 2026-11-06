@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useCanvasStore } from '@/store/canvas-store';
 import { useUser, useAuth } from '@clerk/nextjs';
+import { SERVER_URL } from '@/lib/config';
 
 export interface CanvasRevisionItem {
   id: string;
@@ -72,7 +73,7 @@ export function VersionHistoryDrawer() {
     if (!roomId) return;
     setIsLoading(true);
     try {
-      const res = await fetch(`http://localhost:4000/rooms/${roomId}/revisions`);
+      const res = await fetch(`${SERVER_URL}/rooms/${roomId}/revisions`);
       if (res.ok) {
         const data = await res.json();
         setRevisions(data);
@@ -104,7 +105,7 @@ export function VersionHistoryDrawer() {
       };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const res = await fetch(`http://localhost:4000/rooms/${roomId}/revisions`, {
+      const res = await fetch(`${SERVER_URL}/rooms/${roomId}/revisions`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -147,7 +148,7 @@ export function VersionHistoryDrawer() {
       };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const res = await fetch(`http://localhost:4000/rooms/${roomId}/revisions/${revision.id}/restore`, {
+      const res = await fetch(`${SERVER_URL}/rooms/${roomId}/revisions/${revision.id}/restore`, {
         method: 'POST',
         headers,
       });
@@ -367,7 +368,7 @@ export function VersionHistoryDrawer() {
 
                       <span className="shrink-0 flex items-center gap-1">
                         <Clock className="h-3 w-3" />
-                        <span>{formatRelativeTime(rev.createdAt)}</span>
+                        <span suppressHydrationWarning>{formatRelativeTime(rev.createdAt)}</span>
                       </span>
                     </div>
 

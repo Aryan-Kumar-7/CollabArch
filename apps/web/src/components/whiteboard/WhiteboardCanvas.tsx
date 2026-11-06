@@ -17,6 +17,7 @@ import type { ExcalidrawElement } from '@excalidraw/excalidraw/element/types';
 import { useAuth } from '@clerk/nextjs';
 import { useCanvasStore, setActiveYDoc, type CollaboratorPresence } from '@/store/canvas-store';
 import { WhiteboardCommentsOverlay, type WhiteboardViewState } from '@/components/comments/WhiteboardCommentsOverlay';
+import { getWsUrl } from '@/lib/config';
 import type { CanvasNode, CanvasEdge } from '@collabarch/shared-types';
 
 // Dynamically import Excalidraw with SSR disabled to prevent 'window is not defined'
@@ -267,7 +268,6 @@ export function WhiteboardCanvas({
       const currentNodes = Array.from(yNodesMap.values());
       useCanvasStore.getState().setNodes(currentNodes as any);
     };
-    };
 
     const handleYjsArchitectureEdgesChange = (event: Y.YMapEvent<CanvasEdge>) => {
       if (event.transaction.origin === 'local-flow-edit') return;
@@ -296,11 +296,7 @@ export function WhiteboardCanvas({
 
       if (isDisposed) return;
 
-      const baseEndpoint =
-        wsUrl ||
-        (typeof window !== 'undefined'
-          ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.hostname}:4000/ws`
-          : 'ws://localhost:4000/ws');
+      const baseEndpoint = getWsUrl(wsUrl);
 
       let socketEndpoint = baseEndpoint;
       try {

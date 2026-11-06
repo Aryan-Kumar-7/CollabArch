@@ -271,6 +271,7 @@ export const ArchitectureNodeComponent = memo(function ArchitectureNodeComponent
 
   // Simulation Engine State & Chaos Monkey Hooks
   const isSimulating = useCanvasStore((s) => s.isSimulating);
+  const isSimPaused = useCanvasStore((s) => s.isSimPaused);
   const simMetrics = useCanvasStore((s) => s.simMetrics);
   const simBottleneckNodeIds = useCanvasStore((s) => s.simBottleneckNodeIds);
   const injectChaos = useCanvasStore((s) => s.injectChaos);
@@ -290,7 +291,7 @@ export const ArchitectureNodeComponent = memo(function ArchitectureNodeComponent
   }, [isChaosOpen]);
 
   const nodeMetric = isSimulating ? simMetrics?.nodeMetrics?.[id] : undefined;
-  const isBottleneck = isSimulating && simBottleneckNodeIds.includes(id);
+  const isBottleneck = isSimulating && !isSimPaused && simBottleneckNodeIds.includes(id);
 
   const queuePercent = nodeMetric
     ? Math.min(100, Math.round((nodeMetric.currentQueueDepth / Math.max(1, nodeMetric.maxQueueDepth)) * 100))

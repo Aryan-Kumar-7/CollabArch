@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Sparkles,
@@ -74,7 +75,12 @@ export function CustomComponentModal({ isOpen, onClose }: CustomComponentModalPr
   const [description, setDescription] = useState('');
   const [error, setError] = useState('');
 
-  if (!isOpen) return null;
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!isOpen || !mounted) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,8 +113,8 @@ export function CustomComponentModal({ isOpen, onClose }: CustomComponentModalPr
   const SelectedIconComponent =
     AVAILABLE_ICONS.find((i) => i.name === selectedIcon)?.icon || Cpu;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div
         className="relative w-full max-w-lg rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
@@ -346,6 +352,7 @@ export function CustomComponentModal({ isOpen, onClose }: CustomComponentModalPr
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

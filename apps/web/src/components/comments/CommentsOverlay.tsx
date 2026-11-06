@@ -15,6 +15,7 @@ import { ViewportPortal, useViewport } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvas-store';
 import { useUser, useAuth } from '@clerk/nextjs';
 import { cn } from '@/lib/utils';
+import { SERVER_URL } from '@/lib/config';
 
 export interface CommentAuthor {
   id: string;
@@ -60,6 +61,7 @@ export function formatRelativeTime(dateString: string): string {
 
 export function CommentsOverlay() {
   const {
+    activeMode,
     roomId,
     isCommentMode,
     setIsCommentMode,
@@ -82,7 +84,7 @@ export function CommentsOverlay() {
   const fetchComments = useCallback(async () => {
     if (!roomId) return;
     try {
-      const res = await fetch(`http://localhost:4000/rooms/${roomId}/comments`);
+      const res = await fetch(`${SERVER_URL}/rooms/${roomId}/comments`);
       if (res.ok) {
         const data = await res.json();
         setComments(data);
@@ -93,10 +95,11 @@ export function CommentsOverlay() {
   }, [roomId]);
 
   useEffect(() => {
+    if (activeMode !== 'simulator') return;
     fetchComments();
     const interval = setInterval(fetchComments, 6000);
     return () => clearInterval(interval);
-  }, [fetchComments]);
+  }, [fetchComments, activeMode]);
 
   // Handle escape key to close popover or exit comment mode
   useEffect(() => {
@@ -145,7 +148,7 @@ export function CommentsOverlay() {
         payload.posY = Math.round(newCommentTarget.posY);
       }
 
-      const res = await fetch(`http://localhost:4000/rooms/${roomId}/comments`, {
+      const res = await fetch(`${SERVER_URL}/rooms/${roomId}/comments`, {
         method: 'POST',
         headers,
         body: JSON.stringify(payload),
@@ -180,7 +183,7 @@ export function CommentsOverlay() {
       };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const res = await fetch(`http://localhost:4000/rooms/${roomId}/comments`, {
+      const res = await fetch(`${SERVER_URL}/rooms/${roomId}/comments`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -205,7 +208,7 @@ export function CommentsOverlay() {
     }
   };
 
-  // Resolve comment: calls PATCH http://localhost:4000/comments/:id/resolve
+  // Resolve comment: calls PATCH /comments/:id/resolve
   const handleResolveComment = async (commentId: string) => {
     try {
       const token = await getToken().catch(() => null);
@@ -215,7 +218,7 @@ export function CommentsOverlay() {
       };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const res = await fetch(`http://localhost:4000/comments/${commentId}/resolve`, {
+      const res = await fetch(`${SERVER_URL}/comments/${commentId}/resolve`, {
         method: 'PATCH',
         headers,
       });
@@ -240,7 +243,7 @@ export function CommentsOverlay() {
       };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const res = await fetch(`http://localhost:4000/comments/${commentId}`, {
+      const res = await fetch(`${SERVER_URL}/comments/${commentId}`, {
         method: 'PATCH',
         headers,
         body: JSON.stringify({ isResolved: false }),
@@ -266,7 +269,7 @@ export function CommentsOverlay() {
       };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const res = await fetch(`http://localhost:4000/comments/${commentId}`, {
+      const res = await fetch(`${SERVER_URL}/comments/${commentId}`, {
         method: 'DELETE',
         headers,
       });
