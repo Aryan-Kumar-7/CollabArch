@@ -24,8 +24,13 @@ export class ClerkAuthGuard implements CanActivate {
       token = request.query.token as string;
     }
 
-    // Support dev header override for local API testing without a live frontend session
-    if (!token && devUserId && process.env.NODE_ENV !== 'production') {
+    // Support dev header override for local API testing only when explicitly enabled in non-production
+    if (
+      !token &&
+      devUserId &&
+      process.env.ENABLE_DEV_AUTH_BYPASS === 'true' &&
+      process.env.NODE_ENV !== 'production'
+    ) {
       request.user = {
         userId: devUserId as string,
         email: (request.headers['x-user-email'] as string) || `${devUserId}@collabarch.internal`,
@@ -40,9 +45,13 @@ export class ClerkAuthGuard implements CanActivate {
       throw new UnauthorizedException('Authentication token missing');
     }
 
+    const secretKey = process.env.CLERK_SECRET_KEY;
+    if (!secretKey) {
+      this.logger.error('[ClerkAuthGuard] CLERK_SECRET_KEY is not configured');
+      throw new UnauthorizedException('Authentication misconfigured on server');
+    }
+
     try {
-      const secretKey =
-        process.env.CLERK_SECRET_KEY || 'sk_test_1OOaEIDnIHxhRluKj9r1EBnOVmmiC8fcwyZenhpm2y';
       const claims = await verifyToken(token, { secretKey });
 
       if (!claims || !claims.sub) {

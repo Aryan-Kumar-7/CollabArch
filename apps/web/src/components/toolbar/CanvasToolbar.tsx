@@ -48,6 +48,7 @@ export function CanvasToolbar() {
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [isReviewLoading, setIsReviewLoading] = useState(false);
   const [reviewResult, setReviewResult] = useState<ArchitectureReviewResult | null>(null);
+  const [reviewError, setReviewError] = useState<string | null>(null);
 
   const { user, isLoaded: isUserLoaded } = useUser();
   const { getToken } = useAuth();
@@ -65,6 +66,7 @@ export function CanvasToolbar() {
 
     setIsReviewOpen(true);
     setIsReviewLoading(true);
+    setReviewError(null);
 
     try {
       const token = await getToken();
@@ -78,13 +80,17 @@ export function CanvasToolbar() {
       });
 
       if (!res.ok) {
-        throw new Error('Failed to review architecture');
+        const errorData = await res.json().catch(() => null);
+        throw new Error(
+          errorData?.message || `Architecture review failed with status ${res.status}`
+        );
       }
 
       const data = await res.json();
       setReviewResult(data);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Review error:', err);
+      setReviewError(err?.message || 'Failed to review architecture.');
     } finally {
       setIsReviewLoading(false);
     }
@@ -306,6 +312,7 @@ export function CanvasToolbar() {
         reviewResult={reviewResult}
         isLoading={isReviewLoading}
         onRecheck={handleReviewArchitecture}
+        errorMessage={reviewError}
       />
     </header>
   );

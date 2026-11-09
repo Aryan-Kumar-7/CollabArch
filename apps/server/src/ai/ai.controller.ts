@@ -1,6 +1,7 @@
 import { Controller, Post, Body, BadRequestException, UseGuards } from '@nestjs/common';
 import { AiService, ArchitectureResponse, WhiteboardResponse } from './ai.service';
 import { ClerkAuthGuard } from '../auth/clerk-auth.guard';
+import { AiRateLimitGuard, ThrottleAi } from './ai-rate-limit.guard';
 import {
   CanvasNode,
   CanvasEdge,
@@ -34,11 +35,12 @@ export class ApplyAutoTuneDto {
 }
 
 @Controller('ai')
-@UseGuards(ClerkAuthGuard)
+@UseGuards(ClerkAuthGuard, AiRateLimitGuard)
 export class AiController {
   constructor(private readonly aiService: AiService) {}
 
   @Post('generate-architecture')
+  @ThrottleAi({ limit: 5, ttlSeconds: 60 })
   async generateArchitecture(
     @Body() body: GenerateArchitectureDto
   ): Promise<ArchitectureResponse> {
@@ -50,6 +52,7 @@ export class AiController {
   }
 
   @Post('generate-whiteboard')
+  @ThrottleAi({ limit: 5, ttlSeconds: 60 })
   async generateWhiteboard(
     @Body() body: GenerateArchitectureDto
   ): Promise<WhiteboardResponse> {
@@ -61,6 +64,7 @@ export class AiController {
   }
 
   @Post('review-architecture')
+  @ThrottleAi({ limit: 10, ttlSeconds: 60 })
   async reviewArchitecture(
     @Body() body: ReviewArchitectureDto
   ): Promise<ArchitectureReviewResult> {
@@ -72,6 +76,7 @@ export class AiController {
   }
 
   @Post('auto-tune')
+  @ThrottleAi({ limit: 10, ttlSeconds: 60 })
   async autoTuneCapacity(
     @Body() body: AutoTuneCapacityDto
   ): Promise<AutoTuneResult> {
@@ -94,6 +99,7 @@ export class AiController {
   }
 
   @Post('apply-auto-tune')
+  @ThrottleAi({ limit: 20, ttlSeconds: 60 })
   async applyAutoTune(
     @Body() body: ApplyAutoTuneDto
   ): Promise<{ success: boolean; updatedCount: number }> {

@@ -281,6 +281,7 @@ export function WhiteboardCanvas({
     let ws: WebSocket | null = null;
     let reconnectTimeout: NodeJS.Timeout | null = null;
     let isDisposed = false;
+    let reconnectAttempts = 0;
 
     const connectWebSocket = async () => {
       if (isDisposed) return;
@@ -319,6 +320,7 @@ export function WhiteboardCanvas({
             } catch {}
             return;
           }
+          reconnectAttempts = 0;
           setIsConnected(true);
           useCanvasStore.getState().setIsConnected(true);
 
@@ -468,7 +470,12 @@ export function WhiteboardCanvas({
             // Access denied by RBAC gatekeeper or component unmounted, do not auto-reconnect
             return;
           }
-          reconnectTimeout = setTimeout(connectWebSocket, 3000);
+          reconnectAttempts += 1;
+          // Exponential backoff with full jitter: base 1000ms, factor 1.5, max 30000ms + random 0-500ms
+          const baseDelay = Math.min(1000 * Math.pow(1.5, reconnectAttempts), 30000);
+          const jitter = Math.floor(Math.random() * 500);
+          const backoffDelay = baseDelay + jitter;
+          reconnectTimeout = setTimeout(connectWebSocket, backoffDelay);
         };
 
         ws.onerror = () => {

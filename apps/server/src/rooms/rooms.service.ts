@@ -37,8 +37,13 @@ export class RoomsService {
     if (!workspaceId) return;
 
     try {
-      const secretKey =
-        process.env.CLERK_SECRET_KEY || 'sk_test_1OOaEIDnIHxhRluKj9r1EBnOVmmiC8fcwyZenhpm2y';
+      const secretKey = process.env.CLERK_SECRET_KEY;
+      if (!secretKey) {
+        this.logger.warn(
+          '[RoomsService] CLERK_SECRET_KEY not configured; skipping remote organization metadata sync'
+        );
+        return;
+      }
       const clerk = createClerkClient({ secretKey });
 
       // 1. Fetch organization details from Clerk

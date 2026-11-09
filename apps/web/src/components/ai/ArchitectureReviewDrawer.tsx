@@ -27,6 +27,7 @@ interface ArchitectureReviewDrawerProps {
   reviewResult: ArchitectureReviewResult | null;
   isLoading: boolean;
   onRecheck: () => void;
+  errorMessage?: string | null;
 }
 
 export function ArchitectureReviewDrawer({
@@ -35,6 +36,7 @@ export function ArchitectureReviewDrawer({
   reviewResult,
   isLoading,
   onRecheck,
+  errorMessage,
 }: ArchitectureReviewDrawerProps) {
   const [activeFilter, setActiveFilter] = useState<'all' | ReviewSeverity>('all');
   const [mounted, setMounted] = useState(false);
@@ -141,6 +143,19 @@ export function ArchitectureReviewDrawer({
               <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs leading-relaxed">
                 Analyzing Little's Law capacities, single points of failure, unbuffered calls, and security isolation.
               </p>
+            </div>
+          ) : errorMessage ? (
+            <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 space-y-3">
+              <div className="flex items-start gap-2.5 text-xs text-rose-600 dark:text-rose-400">
+                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                <div className="flex-1 leading-relaxed font-medium">{errorMessage}</div>
+              </div>
+              <button
+                onClick={onRecheck}
+                className="w-full rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-600 dark:text-rose-300 py-2 text-xs font-semibold transition-colors"
+              >
+                Retry Review
+              </button>
             </div>
           ) : reviewResult ? (
             <>

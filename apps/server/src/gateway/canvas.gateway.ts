@@ -2,12 +2,13 @@ import {
   WebSocketGateway,
   WebSocketServer,
   SubscribeMessage,
+  OnGatewayInit,
   OnGatewayConnection,
   OnGatewayDisconnect,
   ConnectedSocket,
   MessageBody,
 } from '@nestjs/websockets';
-import { Logger } from '@nestjs/common';
+import { Logger, OnModuleDestroy } from '@nestjs/common';
 import { Server, WebSocket, RawData } from 'ws';
 import type { IncomingMessage } from 'http';
 import { randomUUID } from 'crypto';
@@ -30,8 +31,11 @@ import {
 } from './binary.util';
 
 @WebSocketGateway({ path: '/ws' })
-export class CanvasGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class CanvasGateway
+  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect, OnModuleDestroy
+{
   private readonly logger = new Logger(CanvasGateway.name);
+  private heartbeatInterval: NodeJS.Timeout | null = null;
 
   @WebSocketServer()
   server!: Server;
@@ -42,12 +46,43 @@ export class CanvasGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly prisma: PrismaService
   ) {}
 
+  afterInit(server: Server) {
+    this.logger.log('[CanvasGateway] WebSocket Gateway initialized. Starting 30s heartbeat monitor...');
+    this.heartbeatInterval = setInterval(() => {
+      if (!this.server?.clients) return;
+      this.server.clients.forEach((client: WebSocket) => {
+        if ((client as any).isAlive === false) {
+          const socketId = (client as any).id || 'unknown';
+          this.logger.warn(`[CanvasGateway] Evicting unresponsive zombie socket: ${socketId}`);
+          return client.terminate();
+        }
+        (client as any).isAlive = false;
+        try {
+          client.ping();
+        } catch {}
+      });
+    }, 30000);
+  }
+
+  onModuleDestroy() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+      this.logger.log('[CanvasGateway] WebSocket heartbeat monitor stopped.');
+    }
+  }
+
   /**
    * Connection lifecycle hook with Clerk JWT verification and guest fallback
    */
   async handleConnection(client: WebSocket, request?: IncomingMessage) {
     const socketId = randomUUID();
     (client as any).id = socketId;
+    (client as any).isAlive = true;
+
+    client.on('pong', () => {
+      (client as any).isAlive = true;
+    });
 
     const reqUrl = request?.url || (client as any).url || '';
     const url = new URL(reqUrl, 'http://localhost:4000');
@@ -64,32 +99,37 @@ export class CanvasGateway implements OnGatewayConnection, OnGatewayDisconnect {
     } | null = null;
 
     if (token) {
-      try {
-        const secretKey =
-          process.env.CLERK_SECRET_KEY || 'sk_test_1OOaEIDnIHxhRluKj9r1EBnOVmmiC8fcwyZenhpm2y';
-        const verifiedClaims = await verifyToken(token, {
-          secretKey,
-        });
-        user = {
-          userId: verifiedClaims.sub,
-          orgId: (verifiedClaims as any).org_id || null,
-          orgRole: (verifiedClaims as any).org_role || null,
-          userName:
-            (verifiedClaims as any).name ||
-            (verifiedClaims as any).username ||
-            (verifiedClaims as any).email?.split('@')[0] ||
-            'Architect',
-          email: (verifiedClaims as any).email,
-          avatarUrl: (verifiedClaims as any).picture || null,
-          isGuest: false,
-        };
-        this.logger.log(
-          `[CanvasGateway] Verified Clerk user connected: ${user.userName} (${user.userId}, org: ${user.orgId})`
-        );
-      } catch (err: any) {
+      const secretKey = process.env.CLERK_SECRET_KEY;
+      if (!secretKey) {
         this.logger.warn(
-          `[CanvasGateway] Invalid or expired Clerk token (${err?.message || err}), falling back to guest`
+          '[CanvasGateway] CLERK_SECRET_KEY is not configured; skipping token verification'
         );
+      } else {
+        try {
+          const verifiedClaims = await verifyToken(token, {
+            secretKey,
+          });
+          user = {
+            userId: verifiedClaims.sub,
+            orgId: (verifiedClaims as any).org_id || null,
+            orgRole: (verifiedClaims as any).org_role || null,
+            userName:
+              (verifiedClaims as any).name ||
+              (verifiedClaims as any).username ||
+              (verifiedClaims as any).email?.split('@')[0] ||
+              'Architect',
+            email: (verifiedClaims as any).email,
+            avatarUrl: (verifiedClaims as any).picture || null,
+            isGuest: false,
+          };
+          this.logger.log(
+            `[CanvasGateway] Verified Clerk user connected: ${user.userName} (${user.userId}, org: ${user.orgId})`
+          );
+        } catch (err: any) {
+          this.logger.warn(
+            `[CanvasGateway] Invalid or expired Clerk token (${err?.message || err}), falling back to guest`
+          );
+        }
       }
     }
 
@@ -183,31 +223,32 @@ export class CanvasGateway implements OnGatewayConnection, OnGatewayDisconnect {
     // Verify token from payload if client connected before token was acquired
     let authUser = (client as any).auth;
     if ((!authUser || authUser.isGuest) && token) {
-      try {
-        const secretKey =
-          process.env.CLERK_SECRET_KEY || 'sk_test_1OOaEIDnIHxhRluKj9r1EBnOVmmiC8fcwyZenhpm2y';
-        const verifiedClaims = await verifyToken(token, { secretKey });
-        if (verifiedClaims?.sub) {
-          authUser = {
-            userId: verifiedClaims.sub,
-            orgId: (verifiedClaims as any).org_id || null,
-            orgRole: (verifiedClaims as any).org_role || null,
-            userName:
-              (verifiedClaims as any).name ||
-              (verifiedClaims as any).username ||
-              userName ||
-              'Architect',
-            email: (verifiedClaims as any).email,
-            avatarUrl: (verifiedClaims as any).picture || null,
-            isGuest: false,
-          };
-          (client as any).auth = authUser;
-          this.logger.log(
-            `[CanvasGateway] Verified Clerk user from join-room payload: ${authUser.userName} (${authUser.userId}, org: ${authUser.orgId})`
-          );
+      const secretKey = process.env.CLERK_SECRET_KEY;
+      if (secretKey) {
+        try {
+          const verifiedClaims = await verifyToken(token, { secretKey });
+          if (verifiedClaims?.sub) {
+            authUser = {
+              userId: verifiedClaims.sub,
+              orgId: (verifiedClaims as any).org_id || null,
+              orgRole: (verifiedClaims as any).org_role || null,
+              userName:
+                (verifiedClaims as any).name ||
+                (verifiedClaims as any).username ||
+                userName ||
+                'Architect',
+              email: (verifiedClaims as any).email,
+              avatarUrl: (verifiedClaims as any).picture || null,
+              isGuest: false,
+            };
+            (client as any).auth = authUser;
+            this.logger.log(
+              `[CanvasGateway] Verified Clerk user from join-room payload: ${authUser.userName} (${authUser.userId}, org: ${authUser.orgId})`
+            );
+          }
+        } catch (err: any) {
+          this.logger.warn(`[CanvasGateway] Failed to verify payload token: ${err?.message || err}`);
         }
-      } catch (err: any) {
-        this.logger.warn(`[CanvasGateway] Failed to verify payload token: ${err?.message || err}`);
       }
     }
 
@@ -265,45 +306,46 @@ export class CanvasGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
         // 3. Fallback: If not yet in DB, verify via Clerk API and immediately persist to PostgreSQL
         if (!isOrgMember && !isOwner && isAuthenticated && room.workspaceId && authUser.userId) {
-          try {
-            const secretKey =
-              process.env.CLERK_SECRET_KEY || 'sk_test_1OOaEIDnIHxhRluKj9r1EBnOVmmiC8fcwyZenhpm2y';
-            const clerk = createClerkClient({ secretKey });
-            const userOrgs = await clerk.users.getOrganizationMembershipList({
-              userId: authUser.userId,
-            });
-            const memberMatch = userOrgs.data.find((m) => m.organization.id === room.workspaceId);
-            if (memberMatch) {
-              isOrgMember = true;
-              authUser.orgId = memberMatch.organization.id;
-              authUser.orgRole = memberMatch.role;
-              (client as any).auth = authUser;
-              this.logger.log(
-                `[CanvasGateway] Verified Clerk org membership via API for user ${authUser.userId} in org ${room.workspaceId}`
-              );
+          const secretKey = process.env.CLERK_SECRET_KEY;
+          if (secretKey) {
+            try {
+              const clerk = createClerkClient({ secretKey });
+              const userOrgs = await clerk.users.getOrganizationMembershipList({
+                userId: authUser.userId,
+              });
+              const memberMatch = userOrgs.data.find((m) => m.organization.id === room.workspaceId);
+              if (memberMatch) {
+                isOrgMember = true;
+                authUser.orgId = memberMatch.organization.id;
+                authUser.orgRole = memberMatch.role;
+                (client as any).auth = authUser;
+                this.logger.log(
+                  `[CanvasGateway] Verified Clerk org membership via API for user ${authUser.userId} in org ${room.workspaceId}`
+                );
 
-              // Persist into PostgreSQL database WorkspaceMember
-              await this.prisma.workspaceMember.upsert({
-                where: {
-                  userId_workspaceId: {
+                // Persist into PostgreSQL database WorkspaceMember
+                await this.prisma.workspaceMember.upsert({
+                  where: {
+                    userId_workspaceId: {
+                      userId: authUser.userId,
+                      workspaceId: room.workspaceId,
+                    },
+                  },
+                  update: {
+                    role: memberMatch.role?.includes('admin') ? 'ADMIN' : 'MEMBER',
+                  },
+                  create: {
                     userId: authUser.userId,
                     workspaceId: room.workspaceId,
+                    role: memberMatch.role?.includes('admin') ? 'ADMIN' : 'MEMBER',
                   },
-                },
-                update: {
-                  role: memberMatch.role?.includes('admin') ? 'ADMIN' : 'MEMBER',
-                },
-                create: {
-                  userId: authUser.userId,
-                  workspaceId: room.workspaceId,
-                  role: memberMatch.role?.includes('admin') ? 'ADMIN' : 'MEMBER',
-                },
-              });
+                });
+              }
+            } catch (err: any) {
+              this.logger.warn(
+                `[CanvasGateway] Failed to verify org membership via Clerk API: ${err?.message || err}`
+              );
             }
-          } catch (err: any) {
-            this.logger.warn(
-              `[CanvasGateway] Failed to verify org membership via Clerk API: ${err?.message || err}`
-            );
           }
         }
 
