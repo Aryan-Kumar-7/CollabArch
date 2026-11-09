@@ -571,6 +571,30 @@ export class CanvasGateway
   }
 
   /**
+   * Immediate snapshot persistence handler.
+   * Enables clients to explicitly trigger an instant database snapshot flush.
+   */
+  @SubscribeMessage('save-snapshot')
+  async handleSaveSnapshot(
+    @ConnectedSocket() client: WebSocket,
+    @MessageBody() data?: { roomId?: string }
+  ) {
+    const roomId = data?.roomId || this.roomManager.getSocketRoomId(client);
+    if (!roomId) {
+      return { event: 'snapshot-saved', data: { status: 'error', message: 'No active room found' } };
+    }
+
+    try {
+      await this.roomManager.flushRoomSnapshot(roomId);
+      this.logger.log(`[CanvasGateway] Instant snapshot flush completed for room "${roomId}"`);
+      return { event: 'snapshot-saved', data: { status: 'ok', roomId, timestamp: Date.now() } };
+    } catch (err: any) {
+      this.logger.error(`[CanvasGateway] Manual snapshot flush failed for room "${roomId}":`, err);
+      return { event: 'snapshot-saved', data: { status: 'error', message: err?.message || 'Flush failed' } };
+    }
+  }
+
+  /**
    * Sync Step 1 Handler:
    * Client sends its state vector. Server calculates differential update (Step 2)
    * and sends it back to the client.

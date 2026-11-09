@@ -530,6 +530,13 @@ export function WhiteboardCanvas({
       if (ws) {
         try {
           if (ws.readyState === WebSocket.OPEN) {
+            // Trigger immediate snapshot flush to PostgreSQL on disconnect
+            ws.send(
+              JSON.stringify({
+                event: 'save-snapshot',
+                data: { roomId },
+              })
+            );
             ws.send(
               JSON.stringify({
                 event: 'leave-room',
@@ -587,8 +594,11 @@ export function WhiteboardCanvas({
           const existing = yElementsMap.get(el.id);
           // Compare against the previously stored snapshot
           if (!existing || existing.version < el.version || existing.versionNonce !== el.versionNonce) {
-            // Deep clone to break object reference and ensure Yjs captures every stroke/drag change
-            const cleanEl = JSON.parse(JSON.stringify(el));
+            // Fast structured clone to break object reference and ensure Yjs captures every stroke/drag change
+            const cleanEl =
+              typeof structuredClone === 'function'
+                ? structuredClone(el)
+                : JSON.parse(JSON.stringify(el));
             yElementsMap.set(el.id, cleanEl);
           }
         }

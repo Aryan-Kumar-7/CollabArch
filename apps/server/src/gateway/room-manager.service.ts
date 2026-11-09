@@ -54,6 +54,9 @@ export class RoomManagerService implements OnModuleDestroy {
   // Debounced snapshot timers per room
   private readonly snapshotTimers = new Map<string, NodeJS.Timeout>();
 
+  // Max-wait snapshot timers per room to guarantee persistence during sustained activity
+  private readonly snapshotMaxWaitTimers = new Map<string, NodeJS.Timeout>();
+
   constructor(private readonly prisma: PrismaService) {}
 
   /**
@@ -218,10 +221,7 @@ export class RoomManagerService implements OnModuleDestroy {
 
     if (isLastPeerOnNode) {
       // If last client departed, flush immediately so server restarts don't lose the latest state
-      if (this.snapshotTimers.has(roomId)) {
-        clearTimeout(this.snapshotTimers.get(roomId)!);
-        this.snapshotTimers.delete(roomId);
-      }
+      this.clearSnapshotTimers(roomId);
       this.flushRoomSnapshot(roomId).catch((err) => {
         this.logger.error(`[Persistence] Error flushing snapshot on last peer departure:`, err);
       });
@@ -260,18 +260,45 @@ export class RoomManagerService implements OnModuleDestroy {
   }
 
   /**
-   * Trailing debounce (10 seconds) for persisting binary snapshots to PostgreSQL.
+   * Helper to cancel both debounce and max-wait timers for a given room.
+   */
+  public clearSnapshotTimers(roomId: string): void {
+    const timer = this.snapshotTimers.get(roomId);
+    if (timer) {
+      clearTimeout(timer);
+      this.snapshotTimers.delete(roomId);
+    }
+    const maxTimer = this.snapshotMaxWaitTimers.get(roomId);
+    if (maxTimer) {
+      clearTimeout(maxTimer);
+      this.snapshotMaxWaitTimers.delete(roomId);
+    }
+  }
+
+  /**
+   * Fast trailing debounce (2 seconds) with a 5-second maxWait guarantee for persisting binary snapshots to PostgreSQL.
    */
   public scheduleRoomSnapshot(roomId: string): void {
-    if (this.snapshotTimers.has(roomId)) {
-      clearTimeout(this.snapshotTimers.get(roomId)!);
+    const existingTimer = this.snapshotTimers.get(roomId);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
     }
 
     const timer = setTimeout(async () => {
+      this.clearSnapshotTimers(roomId);
       await this.flushRoomSnapshot(roomId);
-    }, 10000); // 10s trailing debounce
+    }, 2000); // 2s trailing debounce for fast persistence
 
     this.snapshotTimers.set(roomId, timer);
+
+    // If no max-wait timer is running, establish one so continuous edits flush at least every 5s
+    if (!this.snapshotMaxWaitTimers.has(roomId)) {
+      const maxTimer = setTimeout(async () => {
+        this.clearSnapshotTimers(roomId);
+        await this.flushRoomSnapshot(roomId);
+      }, 5000); // 5s max wait
+      this.snapshotMaxWaitTimers.set(roomId, maxTimer);
+    }
   }
 
   /**
@@ -328,7 +355,7 @@ export class RoomManagerService implements OnModuleDestroy {
         );
       }
     } finally {
-      this.snapshotTimers.delete(roomId);
+      this.clearSnapshotTimers(roomId);
     }
   }
 
@@ -336,11 +363,12 @@ export class RoomManagerService implements OnModuleDestroy {
    * Flushes all pending snapshots upon server shutdown.
    */
   async onModuleDestroy() {
-    for (const [roomId, timer] of this.snapshotTimers.entries()) {
-      clearTimeout(timer);
+    for (const roomId of Array.from(this.rooms.keys())) {
+      this.clearSnapshotTimers(roomId);
       await this.flushRoomSnapshot(roomId);
     }
     this.snapshotTimers.clear();
+    this.snapshotMaxWaitTimers.clear();
   }
 
   /**
