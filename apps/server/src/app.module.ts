@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { HealthController } from './health.controller';
 import { GatewayModule } from './gateway/gateway.module';
 import { RoomsModule } from './rooms/rooms.module';
 import { RedisModule } from './redis/redis.module';
@@ -14,6 +15,7 @@ import { SimulationsModule } from './simulations/simulations.module';
 import { AiModule } from './ai/ai.module';
 
 @Module({
+  controllers: [HealthController],
   imports: [
     PrismaModule,
     RedisModule,
