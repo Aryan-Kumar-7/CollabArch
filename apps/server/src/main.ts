@@ -42,9 +42,12 @@ async function bootstrap() {
   });
   app.useWebSocketAdapter(new WsAdapter(app));
 
-  const port = process.env.PORT || 4000;
-  await app.listen(port);
-  console.log(`[CollabArch Server] Running on http://localhost:${port}`);
+  const port = parseInt(process.env.PORT || '4000', 10);
+  await app.listen(port, '0.0.0.0');
+  console.log(`[CollabArch Server] Running on http://0.0.0.0:${port}`);
 }
 
-bootstrap();
+bootstrap().catch((err) => {
+  console.error('[CollabArch Server] Fatal Bootstrap Error:', err);
+  process.exit(1);
+});
