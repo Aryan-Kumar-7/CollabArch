@@ -96,13 +96,6 @@ export class AiService {
     private readonly redisPubSub: RedisPubSubService
   ) {}
 
-  private getApiKey(): string | undefined {
-    const raw = process.env.GEMINI_API_KEY;
-    if (!raw) return undefined;
-    const clean = raw.trim().replace(/^["']|["']$/g, '').trim();
-    return clean.length > 0 ? clean : undefined;
-  }
-
   /**
    * Generates a complete distributed architecture diagram using Google Gemini API,
    * performs topological layered auto-layout, and synchronizes into Yjs CRDT room.
@@ -112,7 +105,7 @@ export class AiService {
       throw new BadRequestException('Prompt description is required');
     }
 
-    const apiKey = this.getApiKey();
+    const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       this.logger.error('GEMINI_API_KEY is not defined in environment');
       throw new BadRequestException(
@@ -459,7 +452,7 @@ Design rules:
       throw new BadRequestException('Prompt description is required');
     }
 
-    const apiKey = this.getApiKey();
+    const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       throw new BadRequestException('GEMINI_API_KEY is not configured in apps/server/.env.');
     }
@@ -770,7 +763,7 @@ Ensure every connection 'from' and 'to' refers to a valid node 'id'.`,
       throw new BadRequestException('Canvas has no nodes to evaluate.');
     }
 
-    const apiKey = this.getApiKey();
+    const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       throw new BadRequestException('GEMINI_API_KEY is not configured in apps/server/.env.');
     }
@@ -904,7 +897,7 @@ Scoring Rules:
       throw new BadRequestException('Simulation telemetry is required for auto-tuning.');
     }
 
-    const apiKey = this.getApiKey();
+    const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       this.logger.warn('GEMINI_API_KEY is missing. Using Little\'s Law deterministic auto-tune engine.');
       const fallback = this.computeDeterministicAutoTuneFallback(payload);

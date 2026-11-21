@@ -45,7 +45,7 @@ export class ClerkAuthGuard implements CanActivate {
       throw new UnauthorizedException('Authentication token missing');
     }
 
-    const secretKey = process.env.CLERK_SECRET_KEY?.trim().replace(/^["']|["']$/g, '');
+    const secretKey = process.env.CLERK_SECRET_KEY;
     if (!secretKey) {
       this.logger.error('[ClerkAuthGuard] CLERK_SECRET_KEY is not configured');
       throw new UnauthorizedException('Authentication misconfigured on server');
