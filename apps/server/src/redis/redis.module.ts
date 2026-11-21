@@ -3,7 +3,15 @@ import Redis, { RedisOptions } from 'ioredis';
 import { REDIS_PUB_CLIENT, REDIS_SUB_CLIENT } from './redis.constants';
 import { RedisPubSubService } from './redis-pubsub.service';
 
+function getCleanRedisUrl(): string | undefined {
+  const raw = process.env.REDIS_URL;
+  if (!raw) return undefined;
+  const clean = raw.trim().replace(/^["']|["']$/g, '').trim();
+  return clean.length > 0 ? clean : undefined;
+}
+
 function createRedisOptions(): RedisOptions {
+  const cleanUrl = getCleanRedisUrl();
   const options: RedisOptions = {
     host: process.env.REDIS_HOST || '127.0.0.1',
     port: parseInt(process.env.REDIS_PORT || '6380', 10),
@@ -16,7 +24,7 @@ function createRedisOptions(): RedisOptions {
     enableReadyCheck: true,
   };
 
-  if (process.env.REDIS_URL?.startsWith('rediss://')) {
+  if (cleanUrl?.startsWith('rediss://')) {
     options.tls = {};
   }
 
@@ -26,13 +34,14 @@ function createRedisOptions(): RedisOptions {
 const redisPubProvider: Provider = {
   provide: REDIS_PUB_CLIENT,
   useFactory: (): Redis => {
-    if (process.env.REDIS_URL) {
-      return new Redis(process.env.REDIS_URL, {
+    const cleanUrl = getCleanRedisUrl();
+    if (cleanUrl) {
+      return new Redis(cleanUrl, {
         connectTimeout: 10000,
         enableOfflineQueue: false,
         maxRetriesPerRequest: 5,
         retryStrategy: (times) => Math.min(times * 200, 3000),
-        ...(process.env.REDIS_URL.startsWith('rediss://') ? { tls: {} } : {}),
+        ...(cleanUrl.startsWith('rediss://') ? { tls: {} } : {}),
       });
     }
     return new Redis(createRedisOptions());
@@ -42,13 +51,14 @@ const redisPubProvider: Provider = {
 const redisSubProvider: Provider = {
   provide: REDIS_SUB_CLIENT,
   useFactory: (): Redis => {
-    if (process.env.REDIS_URL) {
-      return new Redis(process.env.REDIS_URL, {
+    const cleanUrl = getCleanRedisUrl();
+    if (cleanUrl) {
+      return new Redis(cleanUrl, {
         connectTimeout: 10000,
         enableOfflineQueue: false,
         maxRetriesPerRequest: 5,
         retryStrategy: (times) => Math.min(times * 200, 3000),
-        ...(process.env.REDIS_URL.startsWith('rediss://') ? { tls: {} } : {}),
+        ...(cleanUrl.startsWith('rediss://') ? { tls: {} } : {}),
       });
     }
     return new Redis(createRedisOptions());

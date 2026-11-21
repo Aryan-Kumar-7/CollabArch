@@ -99,7 +99,7 @@ export class CanvasGateway
     } | null = null;
 
     if (token) {
-      const secretKey = process.env.CLERK_SECRET_KEY;
+      const secretKey = process.env.CLERK_SECRET_KEY?.trim().replace(/^["']|["']$/g, '');
       if (!secretKey) {
         this.logger.warn(
           '[CanvasGateway] CLERK_SECRET_KEY is not configured; skipping token verification'
@@ -223,7 +223,7 @@ export class CanvasGateway
     // Verify token from payload if client connected before token was acquired
     let authUser = (client as any).auth;
     if ((!authUser || authUser.isGuest) && token) {
-      const secretKey = process.env.CLERK_SECRET_KEY;
+      const secretKey = process.env.CLERK_SECRET_KEY?.trim().replace(/^["']|["']$/g, '');
       if (secretKey) {
         try {
           const verifiedClaims = await verifyToken(token, { secretKey });
@@ -306,7 +306,7 @@ export class CanvasGateway
 
         // 3. Fallback: If not yet in DB, verify via Clerk API and immediately persist to PostgreSQL
         if (!isOrgMember && !isOwner && isAuthenticated && room.workspaceId && authUser.userId) {
-          const secretKey = process.env.CLERK_SECRET_KEY;
+          const secretKey = process.env.CLERK_SECRET_KEY?.trim().replace(/^["']|["']$/g, '');
           if (secretKey) {
             try {
               const clerk = createClerkClient({ secretKey });

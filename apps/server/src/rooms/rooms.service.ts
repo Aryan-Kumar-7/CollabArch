@@ -37,7 +37,7 @@ export class RoomsService {
     if (!workspaceId) return;
 
     try {
-      const secretKey = process.env.CLERK_SECRET_KEY;
+      const secretKey = process.env.CLERK_SECRET_KEY?.trim().replace(/^["']|["']$/g, '');
       if (!secretKey) {
         this.logger.warn(
           '[RoomsService] CLERK_SECRET_KEY not configured; skipping remote organization metadata sync'

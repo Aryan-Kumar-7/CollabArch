@@ -26,7 +26,7 @@ async function bootstrap() {
   app.use(urlencoded({ limit: '50mb', extended: true }));
   const rawOrigins = process.env.ALLOWED_ORIGINS;
   const allowedOrigins = rawOrigins
-    ? rawOrigins.split(',').map((o) => o.trim()).filter(Boolean)
+    ? rawOrigins.split(',').map((o) => o.trim().replace(/^["']|["']$/g, '')).filter(Boolean)
     : ['http://localhost:3000', 'http://127.0.0.1:3000'];
 
   app.enableCors({
