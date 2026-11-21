@@ -6,7 +6,12 @@ import { RedisPubSubService } from './redis-pubsub.service';
 function getCleanRedisUrl(): string | undefined {
   const raw = process.env.REDIS_URL;
   if (!raw) return undefined;
-  let clean = raw.trim().replace(/^["']|["']$/g, '').trim();
+  let clean = raw.trim();
+  // Strip any variable name prefix (e.g. if user pasted REDIS_URL=... into the value input)
+  clean = clean.replace(/^[A-Za-z0-9_]+\s*=\s*/, '').trim();
+  clean = clean.replace(/^["']|["']$/g, '').trim();
+  clean = clean.replace(/^["']|["']$/g, '').trim();
+
   if (clean.startsWith('tcp://')) {
     clean = 'rediss://' + clean.slice(6);
   } else if (clean.startsWith('//')) {

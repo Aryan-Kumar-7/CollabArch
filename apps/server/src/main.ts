@@ -20,6 +20,19 @@ for (const envPath of [
   } catch {}
 }
 
+// Sanitize cloud dashboard environment variables (strip variable name prefixes & extra quotes)
+for (const key of Object.keys(process.env)) {
+  const val = process.env[key];
+  if (typeof val === 'string') {
+    let clean = val.trim();
+    const prefixRegex = new RegExp(`^${key}\\s*=\\s*`, 'i');
+    clean = clean.replace(prefixRegex, '').trim();
+    clean = clean.replace(/^["']|["']$/g, '').trim();
+    clean = clean.replace(/^["']|["']$/g, '').trim();
+    process.env[key] = clean;
+  }
+}
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { rawBody: true });
   app.use(json({ limit: '50mb' }));
